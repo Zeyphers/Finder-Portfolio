@@ -129,30 +129,45 @@ export function AdminPanel() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch(getApiUrl("/api/upload"), {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token}` },
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success) {
-        setLocalProjects(localProjects.map(p => {
-          if (p.id === projectId) {
-            return {
-              ...p,
-              gallery: [...p.gallery, { url: data.url, caption: "New Image" }]
-            };
-          }
-          return p;
-        }));
+    // Convert file to base64
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Data = event.target?.result;
+      if (!base64Data) return;
+      
+      try {
+        const res = await fetch(getApiUrl("/api/upload"), {
+          method: "POST",
+          headers: { 
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+             fileName: file.name,
+             fileType: file.type,
+             fileData: base64Data
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setLocalProjects(localProjects.map(p => {
+            if (p.id === projectId) {
+              return {
+                ...p,
+                gallery: [...p.gallery, { url: data.url, caption: "New Image" }]
+              };
+            }
+            return p;
+          }));
+        } else {
+          alert("Upload failed: " + (data.error || "Unknown error"));
+        }
+      } catch (err: any) {
+        console.error("Upload error", err);
+        alert("Upload error: " + (err.message || String(err)));
       }
-    } catch (err) {
-      console.error("Upload error", err);
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   const updateImageField = (projectId: string, imageIndex: number, field: "caption" | "videoUrl", value: string) => {

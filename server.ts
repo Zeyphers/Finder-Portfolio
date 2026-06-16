@@ -140,15 +140,17 @@ async function startServer() {
     }
   });
 
-  app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+  app.post("/api/upload", requireAuth, async (req, res) => {
+    const { fileName, fileType, fileData } = req.body;
+    
+    if (!fileData || !fileName) {
+      return res.status(400).json({ error: "No file data uploaded" });
     }
     
     try {
-      const ext = path.extname(req.file.originalname);
-      const name = path.basename(req.file.originalname, ext).replace(/[^a-zA-Z0-9]/g, "-");
-      const filename = `${name}-${Date.now()}${ext}`;
+      const ext = path.extname(fileName);
+      const name = path.basename(fileName, ext).replace(/[^a-zA-Z0-9]/g, "-");
+      const newFilename = `${name}-${Date.now()}${ext}`;
       
       const repoOwner = process.env.GITHUB_OWNER || "Zeyphers";
       const repoName = process.env.GITHUB_REPO || "Finder-Portfolio";
@@ -159,10 +161,11 @@ async function startServer() {
         return res.status(500).json({ error: "GitHub token is not configured in environment variables. Please add GITHUB_TOKEN." });
       }
 
-      const filePath = `portfolio-assets/${filename}`;
+      const filePath = `portfolio-assets/${newFilename}`;
       const githubUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
       
-      const base64Content = req.file.buffer.toString("base64");
+      // Extract pure base64 from data URL
+      const base64Content = fileData.split(",")[1];
       
       const githubRes = await fetch(githubUrl, {
         method: "PUT",
@@ -173,7 +176,7 @@ async function startServer() {
           "User-Agent": "Portfolio-Admin-Applet"
         },
         body: JSON.stringify({
-          message: `Upload image ${filename} via Admin Panel`,
+          message: `Upload image ${newFilename} via Admin Panel`,
           content: base64Content,
           branch: branch
         })

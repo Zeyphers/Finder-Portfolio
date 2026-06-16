@@ -39,17 +39,23 @@ const requireAuth = (req: any, res: any, next: any) => {
   }
 };
 
+import defaultData from "../../src/data.json";
+
 router.get("/data", async (req, res) => {
   try {
     const dataStore = getStore("data");
-    const data = await dataStore.get("data.json", { type: "json" });
-    if (data) {
-      res.json(data);
+    const ObjectData = await dataStore.get("data.json", { type: "json" });
+    if (ObjectData) {
+      if (!ObjectData.EXTERNAL_LINKS || ObjectData.EXTERNAL_LINKS.length === 0) {
+        ObjectData.EXTERNAL_LINKS = defaultData.EXTERNAL_LINKS;
+      }
+      res.json(ObjectData);
     } else {
-      res.json({ PROJECTS: [], EXTERNAL_LINKS: [] });
+      res.json(defaultData);
     }
   } catch (e) {
-    res.status(500).json({ error: "Failed to read data from Blob storage" });
+    console.error("Failed to read from Blob storage, falling back to default.", e);
+    res.json(defaultData);
   }
 });
 
@@ -64,28 +70,35 @@ router.post("/data", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
+router.post("/upload", requireAuth, async (req, res) => {
+  const { fileName, fileType, fileData } = req.body;
+
+  if (!fileData || !fileName) {
+    return res.status(400).json({ error: "No file data uploaded" });
   }
   
   try {
-    const originalName = req.file.originalname;
+    const originalName = fileName;
     const ext = originalName.slice((originalName.lastIndexOf(".") - 1 >>> 0) + 2);
     const name = originalName.replace(`.${ext}`, "").replace(/[^a-zA-Z0-9]/g, "-");
-    const filename = `${name}-${Date.now()}.${ext}`;
+    const newFilename = `${name}-${Date.now()}.${ext}`;
+    
+    // fileData is a dataURL like "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+    const base64String = fileData.split(",")[1];
+    const bufferArray = Buffer.from(base64String, "base64");
     
     const imageStore = getStore("images");
-    await imageStore.set(filename, new Blob([req.file.buffer], { type: req.file.mimetype }), {
-      metadata: { contentType: req.file.mimetype }
+    await imageStore.set(newFilename, new Blob([bufferArray], { type: fileType }), {
+      metadata: { contentType: fileType }
     });
     
-    const url = `/.netlify/functions/api/images/${filename}`;
+    const url = `/.netlify/functions/api/images/${newFilename}`;
+    console.log(`Successfully uploaded: ${url}`);
     
     res.json({ success: true, url: url });
   } catch (e: any) {
-    console.error(e);
-    res.status(500).json({ error: "Failed to upload to netlify blobs: " + e.message });
+    console.error("Upload error details:", e);
+    res.status(500).json({ error: "Failed to upload to netlify blobs: " + (e.message || String(e)) });
   }
 });
 
@@ -140,7 +153,7 @@ app.use("/api", router);
 app.use("/.netlify/functions/api", router);
 
 const expressHandler = serverless(app, {
-  binary: ['multipart/form-data']
+  binary: ['*/*']
 });
 
 import { connectLambda } from "@netlify/blobs";
