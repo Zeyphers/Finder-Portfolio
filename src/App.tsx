@@ -10,7 +10,6 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Portfolio />} />
-          <Route path="/admin-login" element={<AdminPanel isLogin />} />
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="*" element={<Portfolio />} />
         </Routes>

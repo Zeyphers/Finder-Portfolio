@@ -5,7 +5,7 @@ import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Ch
 import { Project, GalleryImage } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 
-export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
+export function AdminPanel() {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -20,21 +20,20 @@ export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
     setLocalProjects(JSON.parse(JSON.stringify(projects)));
   }, [projects]);
 
-  useEffect(() => {
-    if (token && isLogin) {
-      navigate("/admin");
-    }
-  }, [token, isLogin, navigate]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Attempting login at URL: ", getApiUrl("/api/login"));
+    console.log("Payload:", { username, password });
     try {
       const res = await fetch(getApiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
+      console.log("Login response status: ", res.status);
       const data = await res.json();
+      console.log("Login response data: ", data);
+      
       if (data.success) {
         localStorage.setItem("adminToken", data.token);
         setToken(data.token);
@@ -42,8 +41,9 @@ export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
       } else {
         setError("Invalid credentials");
       }
-    } catch {
-      setError("Login failed");
+    } catch (err: any) {
+      console.error("Login exception: ", err);
+      setError(`Login failed: ${err.message || String(err)}`);
     }
   };
 
@@ -56,21 +56,32 @@ export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const currentRemoteDataRes = await fetch(getApiUrl("/api/data"));
+      const currentRemoteData = await currentRemoteDataRes.json();
+      
+      console.log("Saving to:", getApiUrl("/api/data"));
       const res = await fetch(getApiUrl("/api/data"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ PROJECTS: localProjects, EXTERNAL_LINKS: (await (await fetch(getApiUrl("/api/data"))).json()).EXTERNAL_LINKS })
+        body: JSON.stringify({ PROJECTS: localProjects, EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS })
       });
+      console.log("Save response status:", res.status);
       if (res.ok) {
+        const resultData = await res.json();
+        console.log("Save result:", resultData);
         await refreshData();
+        alert(resultData.githubSynced ? "Saved to server and synced to Github!" : "Saved to server, but Github Sync failed or is missing token.");
       } else {
-        alert("Failed to save data. Check authentication.");
+        const errText = await res.text();
+        console.error("Save error response:", errText);
+        alert(`Failed to save data: ${errText}`);
       }
-    } catch (e) {
-      alert("Error saving data");
+    } catch (err: any) {
+      console.error("Save Exception:", err);
+      alert(`Error saving data: ${err.message || String(err)}`);
     }
     setSaving(false);
   };
