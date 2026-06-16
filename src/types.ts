@@ -1,6 +1,8 @@
 export interface GalleryImage {
   url: string;
   caption: string;
+  isVideo?: boolean;
+  videoUrl?: string;
 }
 
 export interface Project {

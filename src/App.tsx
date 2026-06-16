@@ -32,16 +32,59 @@ import {
   Facebook,
   Instagram,
   Linkedin,
-  Youtube
+  Youtube,
+  Play
 } from "lucide-react";
+
+const getYoutubeEmbedUrl = (url: string): string => {
+  if (!url) return "";
+  let videoId = "";
+  if (url.includes("youtu.be/")) {
+    const match = url.split("youtu.be/")[1];
+    videoId = match ? match.split(/[?#]/)[0] : "";
+  } else if (url.includes("youtube.com/watch")) {
+    const parts = url.split("?");
+    if (parts[1]) {
+      const params = new URLSearchParams(parts[1]);
+      videoId = params.get("v") || "";
+    }
+  } else if (url.includes("youtube.com/embed/")) {
+    const match = url.split("youtube.com/embed/")[1];
+    videoId = match ? match.split(/[?#]/)[0] : "";
+  } else if (url.includes("youtube.com/v/")) {
+    const match = url.split("youtube.com/v/")[1];
+    videoId = match ? match.split(/[?#]/)[0] : "";
+  }
+  
+  if (videoId) {
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&enablejsapi=1`;
+  }
+  return url;
+};
 
 export default function App() {
   // Navigation active state can be "overview" or the ID of a project ("project-1", "project-2", etc.)
   const [activeSelection, setActiveSelection] = useState<string>("overview");
   
   // Light/Dark Theme Controllers
-  const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return "light";
+  });
   const isDark = theme === "dark";
+
+  // Sync with device system theme switches
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (e: MediaQueryListEvent) => {
+      setTheme(e.matches ? "dark" : "light");
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   // Helpers to get beautiful themed brand icons
   const getLinkIcon = (iconName: string, className = "w-3.5 h-3.5") => {
@@ -255,26 +298,28 @@ export default function App() {
             </div>
 
             {/* Lightbox zoom actions */}
-            <div className="flex bg-slate-800 border border-white/5 rounded p-0.5 text-xs">
-              <button 
-                onClick={() => setLightboxZoom(prev => Math.max(0.5, prev - 0.25))}
-                className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={() => setLightboxZoom(1)}
-                className="px-2 py-1 hover:bg-slate-700 text-slate-300 font-mono text-[10px] transition"
-              >
-                {Math.round(lightboxZoom * 100)}%
-              </button>
-              <button 
-                onClick={() => setLightboxZoom(prev => Math.min(3, prev + 0.25))}
-                className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-            </div>
+            {!selectedProject.gallery[lightboxIndex].isVideo && (
+              <div className="flex bg-slate-800 border border-white/5 rounded p-0.5 text-xs">
+                <button 
+                  onClick={() => setLightboxZoom(prev => Math.max(0.5, prev - 0.25))}
+                  className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setLightboxZoom(1)}
+                  className="px-2 py-1 hover:bg-slate-700 text-slate-300 font-mono text-[10px] transition"
+                >
+                  {Math.round(lightboxZoom * 100)}%
+                </button>
+                <button 
+                  onClick={() => setLightboxZoom(prev => Math.min(3, prev + 0.25))}
+                  className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Lightbox Main canvas */}
@@ -292,18 +337,28 @@ export default function App() {
               <ChevronLeft className="w-6 h-6" />
             </button>
 
-            {/* Display Image with zoom capability */}
+            {/* Display Image with zoom capability or YouTube Video embed */}
             <div 
-              className="relative max-w-full max-h-full p-2 overflow-hidden transition-transform duration-300 ease-out flex items-center justify-center cursor-zoom-out"
-              style={{ transform: `scale(${lightboxZoom})` }}
+              className={`relative max-w-full max-h-full p-2 overflow-hidden transition-transform duration-300 ease-out flex items-center justify-center ${selectedProject.gallery[lightboxIndex].isVideo ? "w-[85vw] md:w-[70vw] aspect-video" : "cursor-zoom-out"}`}
+              style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { transform: `scale(${lightboxZoom})` }}
               onClick={e => e.stopPropagation()}
             >
-              <img 
-                src={selectedProject.gallery[lightboxIndex].url} 
-                alt="High Resolution Portfolio Asset"
-                className="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] object-contain rounded-md shadow-2xl pointer-events-none"
-                referrerPolicy="no-referrer"
-              />
+              {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
+                <iframe 
+                  src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
+                  title={selectedProject.gallery[lightboxIndex].caption}
+                  className="w-full h-full rounded-lg shadow-2xl border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
+              ) : (
+                <img 
+                  src={selectedProject.gallery[lightboxIndex].url} 
+                  alt="High Resolution Portfolio Asset"
+                  className="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] object-contain rounded-md shadow-2xl pointer-events-none"
+                  referrerPolicy="no-referrer"
+                />
+              )}
             </div>
 
             {/* Right Button */}
@@ -337,38 +392,54 @@ export default function App() {
         <div className={`theme-transition ${styles.titleBarBg} h-11 px-4 flex items-center justify-between shrink-0 relative`}>
           
           {/* Traffic red/yellow/green visual lights */}
-          <div className="flex space-x-2 z-20">
+          <div 
+            onClick={activeSelection !== "overview" ? () => navigateTo("overview") : undefined}
+            className={`flex items-center space-x-2 z-30 p-1.5 -m-1.5 rounded-md transition-all duration-150 ${
+              activeSelection !== "overview" 
+                ? "cursor-pointer active:scale-95 md:active:scale-100 md:cursor-default" 
+                : ""
+            }`}
+            title={activeSelection !== "overview" ? "Tap to go back to overview" : "Mac window controls"}
+          >
             <button 
-              onClick={handleResetSystem}
+              onClick={(e) => {
+                if (activeSelection !== "overview") {
+                  e.stopPropagation();
+                  navigateTo("overview");
+                } else {
+                  handleResetSystem();
+                }
+              }}
               className="group w-3.5 h-3.5 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer active:bg-[#C23C37]"
               title="Reset Finder to Home Overview"
             >
               <X className="w-2 h-2 text-[#4C0002] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
             </button>
-            <div className="group w-3.5 h-3.5 rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-not-allowed">
+            <div className="group w-3.5 h-3.5 rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center">
               <Minus className="w-2.5 h-2.5 text-[#5C3E00] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
             </div>
-            <div className="group w-3.5 h-3.5 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-not-allowed">
+            <div className="group w-3.5 h-3.5 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center">
               <span className="text-[7px] text-[#024B0E] font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">+</span>
             </div>
+            {activeSelection !== "overview" && (
+              <span className="md:hidden text-[11px] font-sans font-bold text-sky-500 animate-pulse pl-1 leading-none select-none">
+                Back
+              </span>
+            )}
           </div>
 
-          {/* Back button on mobile when in a folder view */}
-          {activeSelection !== "overview" && (
-            <button
-              onClick={() => navigateTo("overview")}
-              className="md:hidden flex items-center space-x-1 text-sky-500 hover:text-sky-600 transition cursor-pointer select-none font-sans font-medium text-xs z-30 absolute left-20 top-1/2 -translate-y-1/2"
-            >
-              <ChevronLeft className="w-4.5 h-4.5" />
-              <span>Overview</span>
-            </button>
-          )}
-
           {/* Centered Folder Location path banner */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className={`text-xs font-semibold ${styles.titleText} tracking-wide mt-0.5 transition-colors`}>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-16 select-none">
+            <span className={`text-[11px] sm:text-xs font-semibold ${styles.titleText} tracking-wide mt-0.5 transition-all truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none ${
+              activeSelection !== "overview" ? "hidden md:inline-block" : "inline-block"
+            }`}>
               Jacob Szczepaniak - Portfolio
             </span>
+            {activeSelection !== "overview" && (
+              <span className={`text-[11px] sm:text-xs font-semibold ${styles.titleText} tracking-wide mt-0.5 transition-all truncate max-w-[140px] xs:max-w-[180px] md:hidden`}>
+                {getSectionTitle(activeSelection)}
+              </span>
+            )}
           </div>
 
           {/* Right utility spacing */}
@@ -554,7 +625,14 @@ export default function App() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-[10px] items-start">
                       {selectedProject.gallery.map((img, index) => {
                         const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
-                        const extension = index % 2 === 0 ? "png" : "jpg";
+                        let extension = index % 2 === 0 ? "png" : "jpg";
+                        if (img.url.toLowerCase().endsWith(".gif")) {
+                          extension = "gif";
+                        } else if (img.url.toLowerCase().endsWith(".png")) {
+                          extension = "png";
+                        } else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) {
+                          extension = "jpg";
+                        }
                         const filename = `${baseName}_asset_${index + 1}.${extension}`;
                         
                         return (
@@ -563,14 +641,23 @@ export default function App() {
                             onClick={() => { setLightboxIndex(index); }}
                             className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none transition rounded-lg hover:bg-neutral-500/5 active:bg-neutral-500/10`}
                           >
-                            {/* Render image without cropping, keeping its natural aspect ratio, without custom backgrounds or curved corners */}
-                            <div className="w-full flex items-center justify-center p-1">
+                            {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
+                            <div className="w-full flex items-center justify-center p-1 relative">
                               <img 
                                 src={img.url} 
                                 alt={img.caption}
-                                className="w-full h-auto object-contain group-hover:opacity-90 transition duration-300"
+                                className="w-full h-auto object-contain"
                                 referrerPolicy="no-referrer"
                               />
+                              
+                              {/* Light grey semi-transparent play triangle over video thumbnails */}
+                              {img.isVideo && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/5 rounded">
+                                  <div className="w-12 h-12 rounded-full bg-neutral-200/50 backdrop-blur-xs flex items-center justify-center text-zinc-800 shadow-md border border-white/10">
+                                    <Play className="w-5 h-5 fill-zinc-800 text-zinc-800 ml-0.5" />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} mt-2.5 truncate w-full px-1`}>
                               {filename}
@@ -590,20 +677,24 @@ export default function App() {
         </div>
 
         {/* Header 4: Standard bottom status bar details */}
-        <div className={`theme-transition ${styles.statusBarBg} h-8.5 px-4 flex items-center justify-between shrink-0 text-[10.5px] select-none shadow-inner`}>
-          <div className="flex items-center space-x-1.5">
-            <HardDrive className={`w-3.5 h-3.5 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
-            <span>System Volume: {activeSelection === "overview" ? "Category Explorer" : `Folder Project: ${getSectionTitle(activeSelection)}`}</span>
+        <div className={`theme-transition ${styles.statusBarBg} py-3.5 px-6 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 text-xs sm:text-[13px] select-none shadow-inner`}>
+          <div className="flex items-center space-x-2 min-w-0 max-w-full">
+            <HardDrive className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
+            <span className="font-medium tracking-wide truncate whitespace-nowrap">
+              {activeSelection === "overview" 
+                ? "Volume: Jacob's Portfolio SD" 
+                : `Volume: Jacob's Portfolio SD ➔ ${getSectionTitle(activeSelection)}`}
+            </span>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <span className="font-mono hidden sm:inline text-[9.5px]">23.24 GB Available / 256 GB NVMe</span>
+          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 sm:gap-6 text-right shrink-0">
+            <span className="font-mono text-[11px] text-slate-500 whitespace-nowrap shrink-0">23.24 GB free of 256 GB NVMe</span>
             
             {/* Theme Toggle Button with Fading effect */}
-            <div className={`flex items-center border-l ${isDark ? "border-white/10" : "border-black/10"} pl-4`}>
+            <div className={`flex items-center border-l ${isDark ? "border-white/10" : "border-black/10"} pl-4 shrink-0`}>
               <button 
                 onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
-                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full transition-all duration-300 font-medium cursor-pointer ${
+                className={`flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full transition-all duration-300 font-semibold cursor-pointer active:scale-95 ${
                   isDark 
                     ? "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5" 
                     : "bg-black/5 hover:bg-black/10 text-slate-700 border border-black/10 shadow-3xs"
@@ -612,13 +703,13 @@ export default function App() {
               >
                 {isDark ? (
                   <>
-                    <Sun className="w-3 h-3 text-amber-400 animate-spin-slow animate-pulse" />
-                    <span className="text-[9px] tracking-wide font-sans font-semibold">Light Mode</span>
+                    <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow shrink-0" />
+                    <span className="text-[10px] uppercase tracking-wider font-sans whitespace-nowrap">Light Mode</span>
                   </>
                 ) : (
                   <>
-                    <Moon className="w-3 h-3 text-indigo-500" />
-                    <span className="text-[9px] tracking-wide font-sans font-semibold">Dark Mode</span>
+                    <Moon className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span className="text-[10px] uppercase tracking-wider font-sans whitespace-nowrap">Dark Mode</span>
                   </>
                 )}
               </button>

@@ -56,7 +56,9 @@ export const PROJECTS: Project[] = [
     gallery: [
       {
         url: "https://jacobszczepaniak.com/wp-content/uploads/2023/11/blackhole-1-1024x576.png",
-        caption: "Bending Light: Gravitational lensing rendering created inside Blender Cycles."
+        caption: "Bending Light: Gravitational lensing video simulation created inside Blender Cycles.",
+        isVideo: true,
+        videoUrl: "https://www.youtube.com/watch?v=uK9szf-U4-Q"
       },
       {
         url: "https://jacobszczepaniak.com/wp-content/uploads/2023/11/currents-1-1024x1024.png",
@@ -144,7 +146,9 @@ if ($query->have_posts()) :
     gallery: [
       {
         url: "https://jacobszczepaniak.com/wp-content/uploads/2023/11/Fractal-1-1-1024x576.png",
-        caption: "Fractal Genesis: Infinite recursive geometry study rendered in rich violet tones."
+        caption: "Fractal Genesis: Infinite recursive geometry math animation zoom video loop.",
+        isVideo: true,
+        videoUrl: "https://www.youtube.com/watch?v=gB9mSyxdhyQ"
       },
       {
         url: "https://jacobszczepaniak.com/wp-content/uploads/2023/11/Fractal-1-2-1024x576.png",
