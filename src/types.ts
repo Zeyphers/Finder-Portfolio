@@ -1,3 +1,10 @@
+export interface ExternalLink {
+  id: string;
+  name: string;
+  url: string;
+  iconName: string;
+}
+
 export interface GalleryImage {
   url: string;
   caption: string;

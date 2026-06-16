@@ -1,0 +1,726 @@
+import React, { useState, useMemo, useEffect } from "react";
+import { FolderIcon } from "./components/FolderIcon";
+import { TextEditModal } from "./components/TextEditModal";
+import { useAppletData } from "./DataContext";
+import { Project, GalleryImage } from "./types";
+import { 
+  Folder, 
+  Search, 
+  Grid, 
+  List, 
+  RefreshCw, 
+  ChevronRight, 
+  ChevronLeft,
+  X,
+  Minus,
+  FileText,
+  HardDrive,
+  ExternalLink,
+  Globe,
+  Tag,
+  Clock,
+  Calendar,
+  Briefcase,
+  Layers,
+  Sparkles,
+  ArrowLeft,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Sun,
+  Moon,
+  Facebook,
+  Instagram,
+  Linkedin,
+  Youtube,
+  Play
+} from "lucide-react";
+
+const getYoutubeEmbedUrl = (url: string): string => {
+  if (!url) return "";
+  let videoId = "";
+  if (url.includes("youtu.be/")) {
+    const match = url.split("youtu.be/")[1];
+    videoId = match ? match.split(/[?#]/)[0] : "";
+  } else if (url.includes("youtube.com/watch")) {
+    const parts = url.split("?");
+    if (parts[1]) {
+      const params = new URLSearchParams(parts[1]);
+      videoId = params.get("v") || "";
+    }
+  } else if (url.includes("youtube.com/embed/")) {
+    const match = url.split("youtube.com/embed/")[1];
+    videoId = match ? match.split(/[?#]/)[0] : "";
+  } else if (url.includes("youtube.com/v/")) {
+    const match = url.split("youtube.com/v/")[1];
+    videoId = match ? match.split(/[?#]/)[0] : "";
+  }
+  
+  if (videoId) {
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&enablejsapi=1`;
+  }
+  return url;
+};
+
+export default function Portfolio() {
+  const { projects: PROJECTS, links: EXTERNAL_LINKS } = useAppletData();
+  
+  // Navigation active state can be "overview" or the ID of a project ("project-1", "project-2", etc.)
+  const [activeSelection, setActiveSelection] = useState<string>("overview");
+  
+  // Light/Dark Theme Controllers
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return "light";
+  });
+  const isDark = theme === "dark";
+
+  // Sync with device system theme switches
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (e: MediaQueryListEvent) => {
+      setTheme(e.matches ? "dark" : "light");
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  // Helpers to get beautiful themed brand icons
+  const getLinkIcon = (iconName: string, className = "w-3.5 h-3.5") => {
+    switch (iconName) {
+      case "linkedin":
+        return <Linkedin className={`${className} text-[#0a66c2] shrink-0`} />;
+      case "instagram":
+        return <Instagram className={`${className} text-[#e1306c] shrink-0`} />;
+      case "facebook":
+        return <Facebook className={`${className} text-[#1877f2] shrink-0`} />;
+      case "youtube":
+        return <Youtube className={`${className} text-[#ff0000] shrink-0`} />;
+      default:
+        return <Globe className={`${className} text-slate-500 shrink-0`} />;
+    }
+  };
+
+  const getLargeLinkIcon = (iconName: string, className = "w-7 h-7") => {
+    switch (iconName) {
+      case "linkedin":
+        return <Linkedin className={`${className} text-[#0a66c2]`} />;
+      case "instagram":
+        return <Instagram className={`${className} text-[#e1306c]`} />;
+      case "facebook":
+        return <Facebook className={`${className} text-[#1877f2]`} />;
+      case "youtube":
+        return <Youtube className={`${className} text-[#ff0000]`} />;
+      default:
+        return <Globe className={`${className} text-sky-400`} />;
+    }
+  };
+
+  const styles = useMemo(() => ({
+    // Containers
+    outerBg: isDark ? "bg-[#1c1c1e] text-slate-200" : "bg-[#dedede] text-[#1f2937]",
+    windowBg: isDark ? "bg-[#2a2a2c] border border-white/10 shadow-[0_22px_55px_rgba(0,0,0,0.75)]" : "bg-[#fbfbfb] border border-black/15 shadow-[0_22px_55px_rgba(0,0,0,0.18)]",
+    titleBarBg: isDark ? "bg-[#3a3a3c] border-b border-black/35 text-slate-200" : "bg-[#ececed] border-b border-black/12 text-slate-700",
+    titleText: isDark ? "text-slate-300" : "text-slate-600",
+    toolbarBg: isDark ? "bg-[#323234] border-b border-black/45" : "bg-[#f5f5f7] border-b border-[#000000]/12",
+    sidebarBg: isDark ? "bg-[#18181a] border-r border-black/45 shadow-[4px_0_16px_rgba(0,0,0,0.3)] z-10 text-slate-300" : "bg-[#ececed] border-r border-black/15 shadow-[4px_0_16px_rgba(0,0,0,0.06)] z-10 text-slate-800",
+    mainCanvasBg: isDark ? "bg-[#2a2a2c] text-slate-100" : "bg-white text-slate-900",
+    statusBarBg: isDark ? "bg-[#2a2a2c] border-t border-black/35 text-slate-400" : "bg-[#f0f0f2] border-t border-black/10 text-slate-600",
+    
+    // Text elements
+    textPrimary: isDark ? "text-slate-100" : "text-slate-950",
+    textSecondary: isDark ? "text-slate-300" : "text-slate-800",
+    textMuted: isDark ? "text-slate-400" : "text-slate-500",
+    textMutedSubtle: isDark ? "text-slate-500" : "text-slate-400",
+    
+    // Buttons & Icons
+    sidebarSectionHeader: isDark ? "text-slate-500 font-bold" : "text-slate-400 font-extrabold",
+    sidebarButtonSelected: isDark ? "bg-[#3063d4] text-white" : "bg-[#1062fe] text-white shadow-xs",
+    sidebarButtonHover: isDark ? "text-slate-300 hover:bg-white/5" : "text-slate-700 hover:bg-black/5",
+    toolbarButton: isDark ? "bg-[#323234] hover:bg-[#3d3d40] text-slate-300 border border-[#4a4a4d]" : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-3xs",
+    toolbarToggleBg: isDark ? "bg-[#232325] border border-[#434346]" : "bg-slate-200/60 border border-slate-300",
+    toolbarToggleBtnSelected: isDark ? "bg-[#3e3e41] text-sky-400" : "bg-white text-[#1062fe] shadow-3xs",
+    toolbarToggleBtnHover: isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-505 hover:text-slate-800",
+    
+    // Card & badges inside main workspace
+    cardBg: isDark ? "bg-black/15 border border-white/5" : "bg-[#f9f9fb] border border-black/8 shadow-2xs",
+    badgeBg: isDark ? "bg-sky-500/10 text-sky-400 border border-sky-400/20" : "bg-[#1062fe]/10 text-[#1062fe] border border-[#1062fe]/20",
+    badgeGreenBg: isDark ? "bg-emerald-500/10 text-emerald-400 border border-emerald-400/20" : "bg-emerald-600/10 text-emerald-600 border border-emerald-600/20",
+    badgeOrangeBg: isDark ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" : "bg-orange-600/10 text-orange-600 border border-orange-600/20",
+  }), [isDark]);
+
+  // Modals controller states
+  const [isAboutMeOpen, setIsAboutMeOpen] = useState<boolean>(false);
+  
+  // Lightbox controller state
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [lightboxZoom, setLightboxZoom] = useState<number>(1);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  
+  // View mode style
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Keyboard controls for lightbox navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (lightboxIndex === null) return;
+      
+      const currentProject = PROJECTS.find(p => p.id === activeSelection);
+      if (!currentProject) return;
+
+      if (e.key === "Escape") {
+        closeLightbox();
+      } else if (e.key === "ArrowRight") {
+        const nextIndex = (lightboxIndex + 1) % currentProject.gallery.length;
+        setLightboxIndex(nextIndex);
+        setLightboxZoom(1);
+      } else if (e.key === "ArrowLeft") {
+        const prevIndex = (lightboxIndex - 1 + currentProject.gallery.length) % currentProject.gallery.length;
+        setLightboxIndex(prevIndex);
+        setLightboxZoom(1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxIndex, activeSelection]);
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+    setLightboxZoom(1);
+  };
+
+  // Navigating history tracking
+  const [history, setHistory] = useState<string[]>(["overview"]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
+
+  const navigateTo = (selectionId: string) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(selectionId);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setActiveSelection(selectionId);
+  };
+
+  const navigateBack = () => {
+    if (historyIndex > 0) {
+      const idx = historyIndex - 1;
+      setHistoryIndex(idx);
+      setActiveSelection(history[idx]);
+    }
+  };
+
+  const navigateForward = () => {
+    if (historyIndex < history.length - 1) {
+      const idx = historyIndex + 1;
+      setHistoryIndex(idx);
+      setActiveSelection(history[idx]);
+    }
+  };
+
+  // Safe wrapper for opening external Web location links
+  const handleLinkOpen = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // Reset helper
+  const handleResetSystem = () => {
+    setSearchQuery("");
+    setActiveSelection("overview");
+    setHistory(["overview"]);
+    setHistoryIndex(0);
+    setIsAboutMeOpen(false);
+    setLightboxIndex(null);
+  };
+
+  // Returns project meta of selected item if active
+  const selectedProject = useMemo(() => {
+    if (activeSelection === "overview") return null;
+    return PROJECTS.find(p => p.id === activeSelection) || null;
+  }, [activeSelection]);
+
+  // Folder level items rendering filtering
+  const filteredOverviewFolders = useMemo(() => {
+    if (searchQuery.trim() === "") return PROJECTS;
+    const q = searchQuery.toLowerCase();
+    return PROJECTS.filter(p => 
+      p.name.toLowerCase().includes(q) || 
+      p.client.toLowerCase().includes(q) || 
+      p.category.toLowerCase().includes(q) || 
+      p.tags.some(t => t.toLowerCase().includes(q))
+    );
+  }, [searchQuery]);
+
+  const filteredOverviewLinks = useMemo(() => {
+    if (searchQuery.trim() === "") return EXTERNAL_LINKS;
+    const q = searchQuery.toLowerCase();
+    return EXTERNAL_LINKS.filter(l => l.name.toLowerCase().includes(q));
+  }, [searchQuery]);
+
+  const getSectionTitle = (id: string) => {
+    if (id === "overview") return "Overview";
+    const p = PROJECTS.find(item => item.id === id);
+    return p ? p.name.split(" — ")[0] : "Folder";
+  };
+
+  return (
+    <div className={`theme-transition min-h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-x-hidden antialiased select-none`}>
+      
+      {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
+      {isAboutMeOpen && (
+        <TextEditModal onClose={() => setIsAboutMeOpen(false)} isDark={isDark} />
+      )}
+
+      {/* 7. macOS Preview Lightbox Overlay */}
+      {lightboxIndex !== null && selectedProject && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col justify-between items-center p-4 animate-fade-in"
+          onClick={closeLightbox}
+        >
+          {/* Lightbox Toolbar Header */}
+          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={closeLightbox}
+                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 font-bold flex items-center justify-center transition cursor-pointer"
+                title="Close Preview (ESC)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="text-xs font-mono">
+                <span className="text-white font-semibold font-sans">{selectedProject.gallery[lightboxIndex].caption.split(":")[0] || "Asset"}</span>
+                <span className="text-slate-500 mx-2">|</span>
+                <span>{lightboxIndex + 1} of {selectedProject.gallery.length} images</span>
+              </div>
+            </div>
+
+            {/* Lightbox zoom actions */}
+            {!selectedProject.gallery[lightboxIndex].isVideo && (
+              <div className="flex bg-slate-800 border border-white/5 rounded p-0.5 text-xs">
+                <button 
+                  onClick={() => setLightboxZoom(prev => Math.max(0.5, prev - 0.25))}
+                  className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setLightboxZoom(1)}
+                  className="px-2 py-1 hover:bg-slate-700 text-slate-300 font-mono text-[10px] transition"
+                >
+                  {Math.round(lightboxZoom * 100)}%
+                </button>
+                <button 
+                  onClick={() => setLightboxZoom(prev => Math.min(3, prev + 0.25))}
+                  className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Lightbox Main canvas */}
+          <div className="flex-1 flex items-center justify-center relative w-full h-full min-h-0 select-none">
+            {/* Left Button */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                const prev = (lightboxIndex - 1 + selectedProject.gallery.length) % selectedProject.gallery.length;
+                setLightboxIndex(prev);
+                setLightboxZoom(1);
+              }}
+              className="absolute left-4 z-40 p-3.5 bg-black/45 hover:bg-black/60 text-white rounded-full transition cursor-pointer focus:outline-none"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+
+            {/* Display Image with zoom capability or YouTube Video embed */}
+            <div 
+              className={`relative max-w-full max-h-full p-2 overflow-hidden transition-transform duration-300 ease-out flex items-center justify-center ${selectedProject.gallery[lightboxIndex].isVideo ? "w-[85vw] md:w-[70vw] aspect-video" : "cursor-zoom-out"}`}
+              style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { transform: `scale(${lightboxZoom})` }}
+              onClick={e => e.stopPropagation()}
+            >
+              {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
+                <iframe 
+                  src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
+                  title={selectedProject.gallery[lightboxIndex].caption}
+                  className="w-full h-full rounded-lg shadow-2xl border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
+              ) : (
+                <img 
+                  src={selectedProject.gallery[lightboxIndex].url} 
+                  alt="High Resolution Portfolio Asset"
+                  className="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] object-contain rounded-md shadow-2xl pointer-events-none"
+                  referrerPolicy="no-referrer"
+                />
+              )}
+            </div>
+
+            {/* Right Button */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                const next = (lightboxIndex + 1) % selectedProject.gallery.length;
+                setLightboxIndex(next);
+                setLightboxZoom(1);
+              }}
+              className="absolute right-4 z-40 p-3.5 bg-black/45 hover:bg-black/60 text-white rounded-full transition cursor-pointer focus:outline-none"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Caption text footer */}
+          <div 
+            className="w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 mt-4 h-fit shrink-0 select-text"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="font-serif leading-relaxed italic">{selectedProject.gallery[lightboxIndex].caption}</p>
+          </div>
+        </div>
+      )}      {/* Main Finder Window container */}
+      <div 
+        id="finder-window"
+        className={`theme-transition w-full max-w-[1550px] h-full sm:h-[88vh] min-h-[720px] ${styles.windowBg} rounded-[28px] overflow-hidden flex flex-col relative`}
+      >
+        {/* Header 1: macOS traffic lights and centered directory label */}
+        <div className={`theme-transition ${styles.titleBarBg} h-11 px-4 flex items-center justify-between shrink-0 relative`}>
+          
+          {/* Traffic red/yellow/green visual lights */}
+          <div 
+            onClick={activeSelection !== "overview" ? () => navigateTo("overview") : undefined}
+            className={`flex items-center space-x-2 z-30 p-1.5 -m-1.5 rounded-md transition-all duration-150 ${
+              activeSelection !== "overview" 
+                ? "cursor-pointer active:scale-95 md:active:scale-100 md:cursor-default" 
+                : ""
+            }`}
+            title={activeSelection !== "overview" ? "Tap to go back to overview" : "Mac window controls"}
+          >
+            <button 
+              onClick={(e) => {
+                if (activeSelection !== "overview") {
+                  e.stopPropagation();
+                  navigateTo("overview");
+                } else {
+                  handleResetSystem();
+                }
+              }}
+              className="group w-3.5 h-3.5 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer active:bg-[#C23C37]"
+              title="Reset Finder to Home Overview"
+            >
+              <X className="w-2 h-2 text-[#4C0002] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
+            </button>
+            <div className="group w-3.5 h-3.5 rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center">
+              <Minus className="w-2.5 h-2.5 text-[#5C3E00] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
+            </div>
+            <div className="group w-3.5 h-3.5 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center">
+              <span className="text-[7px] text-[#024B0E] font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">+</span>
+            </div>
+            {activeSelection !== "overview" && (
+              <span className="md:hidden text-[11px] font-sans font-bold text-sky-500 animate-pulse pl-1 leading-none select-none">
+                Back
+              </span>
+            )}
+          </div>
+
+          {/* Centered Folder Location path banner */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-16 select-none">
+            <span className={`text-[11px] sm:text-xs font-semibold ${styles.titleText} tracking-wide mt-0.5 transition-all truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none ${
+              activeSelection !== "overview" ? "hidden md:inline-block" : "inline-block"
+            }`}>
+              Jacob Szczepaniak - Portfolio
+            </span>
+            {activeSelection !== "overview" && (
+              <span className={`text-[11px] sm:text-xs font-semibold ${styles.titleText} tracking-wide mt-0.5 transition-all truncate max-w-[140px] xs:max-w-[180px] md:hidden`}>
+                {getSectionTitle(activeSelection)}
+              </span>
+            )}
+          </div>
+
+          {/* Right utility spacing */}
+          <div className="w-20"></div>
+        </div>
+
+        {/* Interior layout body splits (Sidebar list on left / Files workspace canvas on right) */}
+        <div className={`flex-1 flex overflow-hidden min-h-0 ${isDark ? "bg-[#2a2a2c]" : "bg-white"}`}>
+          
+          {/* A. Dynamic sidebar layout list */}
+          <aside className={`theme-transition hidden md:flex w-64 shrink-0 ${styles.sidebarBg} p-4 flex-col space-y-5 select-none overflow-y-auto scrollbar-thin`}>
+            
+            {/* 1. Overview and Biography file item index shortcuts */}
+            <div>
+              <button
+                onClick={() => { if (activeSelection !== "overview") navigateTo("overview"); }}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium transition cursor-pointer select-none ${
+                  activeSelection === "overview"
+                    ? styles.sidebarButtonSelected
+                    : styles.sidebarButtonHover
+                }`}
+              >
+                <Folder className={`w-4.5 h-4.5 shrink-0 ${activeSelection === "overview" ? "text-white" : "text-slate-400"}`} />
+                <span>Overview</span>
+              </button>
+            </div>
+
+            {/* 2. Projects Sidebar list matching files */}
+            <div className="space-y-1.5">
+              <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>Projects</h4>
+              <ul className="space-y-1 text-[15.5px]">
+                {PROJECTS.map((project) => {
+                  const isCurSelected = activeSelection === project.id;
+                  return (
+                    <li key={project.id}>
+                      <button
+                        onClick={() => navigateTo(project.id)}
+                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium transition cursor-pointer truncate ${
+                          isCurSelected 
+                            ? styles.sidebarButtonSelected 
+                            : styles.sidebarButtonHover
+                        }`}
+                      >
+                        <Folder className={`w-4.5 h-4.5 shrink-0 ${isCurSelected ? "text-white" : "text-slate-400"}`} />
+                        <span className="truncate">{project.name.split(" — ")[0]}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* 3. Links Sidebar list redirect triggers */}
+            <div className="space-y-1.5">
+              <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>Links</h4>
+              <ul className="space-y-1 text-[15.5px]">
+                {EXTERNAL_LINKS.map((link) => (
+                  <li key={link.id}>
+                    <button
+                      onClick={() => handleLinkOpen(link.url)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left font-medium transition cursor-pointer ${styles.sidebarButtonHover}`}
+                    >
+                      <div className="flex items-center space-x-3 truncate">
+                        {getLinkIcon(link.iconName, "w-4.5 h-4.5")}
+                        <span className="truncate">{link.name}</span>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+          </aside>
+
+          {/* B. Center workspace directory canvas */}
+          <main className={`theme-transition flex-1 overflow-y-auto p-2.5 relative min-w-0 flex flex-col justify-start ${styles.mainCanvasBg} scrollbar-thin select-none`}>
+            
+            {activeSelection === "overview" ? (
+              // ==================== STATE 1: TOP-LEVEL OVERVIEW VIEW ====================
+              <div className="h-full flex flex-col justify-start min-h-0 animate-fade-in">
+                
+                <div className="pt-2" />
+
+                <div className="flex-1 overflow-y-auto pb-6 space-y-6 scrollbar-thin">
+                  
+                  {/* Projects Section */}
+                  {filteredOverviewFolders.length > 0 && (
+                    <div className="space-y-3">
+                      <div className={`text-[11px] font-semibold uppercase tracking-wider ${styles.textMuted} pl-1`}>
+                        Project Folders
+                      </div>
+                      <div className="flex flex-wrap gap-[10px] justify-start items-start animate-fade-in">
+                        {filteredOverviewFolders.map((project) => (
+                          <div 
+                            key={project.id}
+                            onClick={() => navigateTo(project.id)}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent hover:bg-neutral-500/5 active:bg-neutral-500/10 cursor-pointer select-none transition w-[160px]`}
+                          >
+                            <FolderIcon 
+                              className="w-[140px] h-[140px] mb-1 transition duration-300"
+                            />
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} leading-tight w-full break-words mt-2 group-hover:text-blue-500 transition-colors px-1`}>
+                              {project.name.split(" — ")[0]}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Horizontal Divider Line */}
+                  {filteredOverviewFolders.length > 0 && (filteredOverviewLinks.length > 0 || searchQuery === "") && (
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                        <div className={`w-full border-t ${isDark ? "border-white/10" : "border-black/8"}`}></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shortcuts & Links Section */}
+                  {(filteredOverviewLinks.length > 0 || searchQuery === "") && (
+                    <div className="space-y-3">
+                      <div className={`text-[11px] font-semibold uppercase tracking-wider ${styles.textMuted} pl-1`}>
+                        Shortcuts & Documents
+                      </div>
+                      <div className="flex flex-wrap gap-[10px] justify-start items-start animate-fade-in">
+                        {/* File: About Me.rtf */}
+                        {(searchQuery === "" || "about me.rtf".includes(searchQuery.toLowerCase())) && (
+                          <div 
+                            onClick={() => setIsAboutMeOpen(true)}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent hover:bg-neutral-500/5 active:bg-neutral-500/10 cursor-pointer select-none transition w-[160px]`}
+                          >
+                            <div className={`${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] flex flex-col justify-between p-3 relative mb-2 transition duration-300`}>
+                              <div className="h-2 bg-orange-500 rounded-sm w-full"></div>
+                              <div className="flex flex-col space-y-1.5 py-2 pl-1">
+                                <div className={`h-1 ${isDark ? "bg-slate-700" : "bg-slate-300"} w-2/3 rounded-sm`}></div>
+                                <div className={`h-1 ${isDark ? "bg-slate-800" : "bg-slate-400"} w-5/6 rounded-sm`}></div>
+                                <div className={`h-1 ${isDark ? "bg-slate-700" : "bg-slate-300"} w-4/5 rounded-sm`}></div>
+                              </div>
+                              <span className="text-[10px] text-orange-500 font-extrabold font-mono text-right pr-0.5">RTF</span>
+                            </div>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full group-hover:text-orange-500 transition-colors px-1`}>
+                              About Me.rtf
+                            </span>
+                            <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>1.2 KB</span>
+                          </div>
+                        )}
+
+                        {/* Dynamic web links */}
+                        {filteredOverviewLinks.map((link) => (
+                          <div 
+                            key={link.id}
+                            onClick={() => handleLinkOpen(link.url)}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent hover:bg-neutral-500/5 active:bg-neutral-500/10 cursor-pointer select-none transition w-[160px]`}
+                          >
+                            <div className={`w-[120px] h-[120px] ${isDark ? "bg-zinc-800/40 border border-white/5" : "bg-slate-100/70 border border-black/5"} rounded-2xl shadow-sm flex items-center justify-center relative mb-2 transition duration-300`}>
+                              {getLargeLinkIcon(link.iconName, "w-[32px] h-[32px]")}
+                              <div className="absolute bottom-1.5 right-1.5 w-4 h-4 bg-slate-900 border border-slate-700 rounded-full flex items-center justify-center">
+                                <span className="text-[9px] text-sky-400 font-extrabold">↗</span>
+                              </div>
+                            </div>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full group-hover:text-blue-500 transition-colors px-1`}>
+                              {link.name.split(" ")[0]}.webloc
+                            </span>
+                            <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Web URL</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+            ) : (
+              // ==================== STATE 2: PROJECT CORRESPONDING GALLERY VIEW ====================
+              selectedProject && (
+                <div className={`h-full flex flex-col justify-start min-h-0 animate-fade-in ${styles.textSecondary}`}>
+                  
+                  {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
+                  <div className="flex-1 overflow-y-auto min-h-0 w-full scrollbar-thin p-2.5">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-[10px] items-start">
+                      {selectedProject.gallery.map((img, index) => {
+                        const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
+                        let extension = index % 2 === 0 ? "png" : "jpg";
+                        if (img.url.toLowerCase().endsWith(".gif")) {
+                          extension = "gif";
+                        } else if (img.url.toLowerCase().endsWith(".png")) {
+                          extension = "png";
+                        } else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) {
+                          extension = "jpg";
+                        }
+                        const filename = `${baseName}_asset_${index + 1}.${extension}`;
+                        
+                        return (
+                          <div 
+                            key={index}
+                            onClick={() => { setLightboxIndex(index); }}
+                            className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none transition rounded-lg hover:bg-neutral-500/5 active:bg-neutral-500/10`}
+                          >
+                            {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
+                            <div className="w-full flex items-center justify-center p-1 relative">
+                              <img 
+                                src={img.url} 
+                                alt={img.caption}
+                                className="w-full h-auto object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                              
+                              {/* Light grey semi-transparent play triangle over video thumbnails */}
+                              {img.isVideo && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/5 rounded">
+                                  <div className="w-12 h-12 rounded-full bg-neutral-200/50 backdrop-blur-xs flex items-center justify-center text-zinc-800 shadow-md border border-white/10">
+                                    <Play className="w-5 h-5 fill-zinc-800 text-zinc-800 ml-0.5" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} mt-2.5 truncate w-full px-1`}>
+                              {filename}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                </div>
+              )
+            )}
+
+          </main>
+
+        </div>
+
+        {/* Header 4: Standard bottom status bar details */}
+        <div className={`theme-transition ${styles.statusBarBg} py-3.5 px-6 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 text-xs sm:text-[13px] select-none shadow-inner`}>
+          <div className="flex items-center space-x-2 min-w-0 max-w-full">
+            <HardDrive className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
+            <span className="font-medium tracking-wide truncate whitespace-nowrap">
+              {activeSelection === "overview" 
+                ? "Volume: Jacob's Portfolio SD" 
+                : `Volume: Jacob's Portfolio SD ➔ ${getSectionTitle(activeSelection)}`}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 sm:gap-6 text-right shrink-0">
+            <span className="font-mono text-[11px] text-slate-500 whitespace-nowrap shrink-0">23.24 GB free of 256 GB NVMe</span>
+            
+            {/* Theme Toggle Button with Fading effect */}
+            <div className={`flex items-center border-l ${isDark ? "border-white/10" : "border-black/10"} pl-4 shrink-0`}>
+              <button 
+                onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
+                className={`flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full transition-all duration-300 font-semibold cursor-pointer active:scale-95 ${
+                  isDark 
+                    ? "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5" 
+                    : "bg-black/5 hover:bg-black/10 text-slate-700 border border-black/10 shadow-3xs"
+                }`}
+                title={`Switch to ${isDark ? "Light" : "Dark"} Mode`}
+              >
+                {isDark ? (
+                  <>
+                    <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow shrink-0" />
+                    <span className="text-[10px] uppercase tracking-wider font-sans whitespace-nowrap">Light Mode</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span className="text-[10px] uppercase tracking-wider font-sans whitespace-nowrap">Dark Mode</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
