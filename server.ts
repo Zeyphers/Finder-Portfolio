@@ -10,21 +10,8 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Setup multer for file uploads
-  const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-      const dir = path.join(process.cwd(), "public/uploads");
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      cb(null, dir);
-    },
-    filename: function (req, file, cb) {
-      const ext = path.extname(file.originalname);
-      const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, "-");
-      cb(null, `${name}-${Date.now()}${ext}`);
-    }
-  });
+  // Setup multer for memory storage so we can push to GitHub
+  const storage = multer.memoryStorage();
   const upload = multer({ storage });
 
   // API Routes
@@ -66,12 +53,95 @@ async function startServer() {
     }
   });
 
-  app.post("/api/upload", requireAuth, upload.single("file"), (req, res) => {
+  app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
-    const url = `/uploads/${req.file.filename}`;
-    res.json({ success: true, url });
+    
+    try {
+      const ext = path.extname(req.file.originalname);
+      const name = path.basename(req.file.originalname, ext).replace(/[^a-zA-Z0-9]/g, "-");
+      const filename = `${name}-${Date.now()}${ext}`;
+      
+      const repoOwner = process.env.GITHUB_OWNER || "Zeyphers";
+      const repoName = process.env.GITHUB_REPO || "Finder-Portfolio";
+      const branch = process.env.GITHUB_BRANCH || "main";
+      const token = process.env.GITHUB_TOKEN;
+      
+      if (!token) {
+        return res.status(500).json({ error: "GitHub token is not configured in environment variables. Please add GITHUB_TOKEN." });
+      }
+
+      const filePath = `portfolio-assets/${filename}`;
+      const githubUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
+      
+      const base64Content = req.file.buffer.toString("base64");
+      
+      const githubRes = await fetch(githubUrl, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "Portfolio-Admin-Applet"
+        },
+        body: JSON.stringify({
+          message: `Upload image ${filename} via Admin Panel`,
+          content: base64Content,
+          branch: branch
+        })
+      });
+
+      if (!githubRes.ok) {
+        const errInfo = await githubRes.json();
+        console.error("Github Api Error:", errInfo);
+        return res.status(500).json({ error: `GitHub API error: ${errInfo.message}` });
+      }
+      
+      const cdnUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/${branch}/${filePath}`;
+
+      res.json({ success: true, url: cdnUrl });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to upload to github: " + e.message });
+    }
+  });
+
+  // Fetch images securely from private repo
+  app.get("/api/image-proxy", async (req, res) => {
+    const targetUrl = req.query.url as string;
+    if (!targetUrl) {
+      return res.status(400).send("Missing url parameter");
+    }
+    
+    try {
+      const fetchOptions: RequestInit = {};
+      
+      // If it's a github raw URL, authenticate the request with the backend token
+      if (targetUrl.startsWith("https://raw.githubusercontent.com/") || targetUrl.includes("github.com")) {
+        const token = process.env.GITHUB_TOKEN;
+        if (token) {
+          fetchOptions.headers = {
+            "Authorization": `token ${token}`
+          };
+        }
+      }
+      
+      const upstreamRes = await fetch(targetUrl, fetchOptions);
+      if (!upstreamRes.ok) {
+        return res.status(upstreamRes.status).send(`Failed to fetch image: ${upstreamRes.statusText}`);
+      }
+      
+      const contentType = upstreamRes.headers.get("content-type");
+      if (contentType) {
+        res.setHeader("Content-Type", contentType);
+      }
+      const buffer = await upstreamRes.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } catch (e: any) {
+      console.error("Image proxy error:", e);
+      res.status(500).send("Error fetching image");
+    }
   });
 
   // Serve static uploads

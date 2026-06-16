@@ -4,6 +4,14 @@ import { useAppletData } from "./DataContext";
 import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw } from "lucide-react";
 import { Project, GalleryImage } from "./types";
 
+const getImageUrl = (url: string): string => {
+  if (!url) return "";
+  if (url.startsWith("http")) {
+    return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+};
+
 export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
   const [username, setUsername] = useState("");
@@ -302,13 +310,13 @@ export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
                         <div className="flex-1 bg-black/5 relative p-2 flex items-center justify-center min-h-0">
                           {img.isVideo ? (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded text-red-500 overflow-hidden relative">
-                              <img src={img.url} className="w-full h-full object-cover opacity-50" />
+                              <img src={getImageUrl(img.url)} className="w-full h-full object-cover opacity-50" />
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <FileVideo className="w-8 h-8 opacity-90" />
                               </div>
                             </div>
                           ) : (
-                            <img src={img.url} className="max-w-full max-h-full object-contain rounded" alt="media" />
+                            <img src={getImageUrl(img.url)} className="max-w-full max-h-full object-contain rounded" alt="media" />
                           )}
                           
                           {/* Desktop Image Controls overlay */}

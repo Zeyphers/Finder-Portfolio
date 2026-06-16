@@ -62,6 +62,14 @@ const getYoutubeEmbedUrl = (url: string): string => {
   return url;
 };
 
+const getImageUrl = (url: string): string => {
+  if (!url) return "";
+  if (url.startsWith("http")) {
+    return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+};
+
 export default function Portfolio() {
   const { projects: PROJECTS, links: EXTERNAL_LINKS } = useAppletData();
   
@@ -355,7 +363,7 @@ export default function Portfolio() {
                 ></iframe>
               ) : (
                 <img 
-                  src={selectedProject.gallery[lightboxIndex].url} 
+                  src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
                   alt="High Resolution Portfolio Asset"
                   className="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] object-contain rounded-md shadow-2xl pointer-events-none"
                   referrerPolicy="no-referrer"
@@ -624,7 +632,7 @@ export default function Portfolio() {
                   
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
                   <div className="flex-1 overflow-y-auto min-h-0 w-full scrollbar-thin p-2.5">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-[10px] items-start">
+                    <div className="columns-2 md:columns-4 gap-[10px] space-y-[10px]">
                       {selectedProject.gallery.map((img, index) => {
                         const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
                         let extension = index % 2 === 0 ? "png" : "jpg";
@@ -641,12 +649,12 @@ export default function Portfolio() {
                           <div 
                             key={index}
                             onClick={() => { setLightboxIndex(index); }}
-                            className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none transition rounded-lg hover:bg-neutral-500/5 active:bg-neutral-500/10`}
+                            className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none transition rounded-lg hover:bg-neutral-500/5 active:bg-neutral-500/10 break-inside-avoid inline-block w-full`}
                           >
                             {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
                             <div className="w-full flex items-center justify-center p-1 relative">
                               <img 
-                                src={img.url} 
+                                src={getImageUrl(img.url)} 
                                 alt={img.caption}
                                 className="w-full h-auto object-contain"
                                 referrerPolicy="no-referrer"
