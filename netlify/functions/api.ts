@@ -112,8 +112,10 @@ router.get("/images/:filename", async (req, res) => {
     
     const buffer = Buffer.from(ibuffer);
 
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
     
-    res.setHeader("Content-Type", "image/" + filename.split('.').pop()?.replace('jpg', 'jpeg') || "application/octet-stream");
+    res.setHeader("Content-Type", contentType);
     res.send(buffer);
   } catch (e: any) {
     console.error("Image fetch error:", e);
@@ -151,7 +153,18 @@ app.use("/api", router);
 app.use("/.netlify/functions/api", router);
 
 const expressHandler = serverless(app, {
-  binary: ['multipart/form-data']
+  binary: [
+    'image/*',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/vnd.microsoft.icon',
+    'image/x-icon',
+    'image/svg+xml',
+    'multipart/form-data',
+    'application/octet-stream'
+  ]
 });
 
 import { connectLambda } from "@netlify/blobs";
