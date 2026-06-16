@@ -1,0 +1,6 @@
+{
+  "name": "macOS Finder Portfolio",
+  "description": "A faithful macOS Finder-style portfolio site featuring interactive folder navigation, dark mode, custom preview panes, and details for WordPress integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

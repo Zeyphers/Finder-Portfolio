@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Apple Colors Emoji", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
+}
+
+/* Rounded macOS custom elements */
+.osx-scrollbar::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.osx-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.osx-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+}
+
+.osx-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #1a1a1c;
+  color: #e2e8f0;
+  transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
+}
+
+/* Elegant and soothing theme transitions for light/dark mode */
+.theme-transition,
+.theme-transition * {
+  transition-property: background-color, border-color, color, fill, stroke, opacity;
+  transition-duration: 500ms;
+  transition-timing-function: ease-in-out;
+}
