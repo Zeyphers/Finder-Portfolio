@@ -35,6 +35,17 @@ export interface Project {
   };
 }
 
+export interface AboutInfo {
+  name: string;
+  title: string;
+  established: string;
+  location: string;
+  intro: string;
+  bio: string;
+  contact: string;
+  signoff: string;
+}
+
 export interface SidebarItem {
   id: string;
   name: string;

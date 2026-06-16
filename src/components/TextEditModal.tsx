@@ -4,6 +4,7 @@ import {
   Minus, 
   FileText
 } from "lucide-react";
+import { useAppletData } from "../DataContext";
 
 interface TextEditModalProps {
   onClose: () => void;
@@ -11,6 +12,8 @@ interface TextEditModalProps {
 }
 
 export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark }) => {
+  const { about } = useAppletData();
+  
   const styles = React.useMemo(() => ({
     backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none",
     windowBg: isDark 
@@ -38,6 +41,16 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
     footerName: isDark ? "text-slate-300" : "text-neutral-900",
     statusBarBg: isDark ? "bg-[#2a2a2c] text-slate-500 border-t border-[#1a1a1c]" : "bg-[#f0f0f2] text-slate-600 border-t border-black/10",
   }), [isDark]);
+
+  const wordCount = React.useMemo(() => {
+    const text = `${about?.intro || ""} ${about?.bio || ""}`;
+    return text.trim().split(/\s+/).filter(Boolean).length;
+  }, [about]);
+
+  const charCount = React.useMemo(() => {
+    const text = `${about?.intro || ""} ${about?.bio || ""}`;
+    return text.length;
+  }, [about]);
 
   return (
     <div className={styles.backdropBg} onClick={onClose}>
@@ -83,30 +96,30 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
             {/* Header branding */}
             <div className={`flex justify-between items-start border-b-2 ${styles.paperHeaderBorder} pb-5 mb-6`}>
               <div>
-                <h1 className={`text-2xl font-bold tracking-tight ${styles.paperTitle} font-sans`}>Jake Pay</h1>
-                <p className={`text-xs font-mono uppercase tracking-wider ${styles.paperSubtitle} mt-1 font-semibold`}>Digital & Graphic Designer</p>
+                <h1 className={`text-2xl font-bold tracking-tight ${styles.paperTitle} font-sans`}>{about?.name || "Jake Pay"}</h1>
+                <p className={`text-xs font-mono uppercase tracking-wider ${styles.paperSubtitle} mt-1 font-semibold`}>{about?.title || "Digital & Graphic Designer"}</p>
               </div>
               <div className={`text-right text-xs font-serif italic ${styles.paperEstablished}`}>
-                Established 2021<br />
-                Based in London, UK
+                Established {about?.established || "2021"}<br />
+                Based in {about?.location || "London, UK"}
               </div>
             </div>
 
             {/* Profile Intro */}
             <div className="space-y-4">
               <p className={`first-letter:text-4xl first-letter:font-bold first-letter:${styles.paperTitle} first-letter:float-left first-letter:mr-2 ${styles.paperParagraph}`}>
-                As a visual architect and product designer, I blend the pristine structural logic of classical modernist print layouts with next-generation interactive web capabilities. Deeply inspired by Swiss design, modular systems, and physical materials, my work is centered around bringing tactile craftsmanship into digital mediums.
+                {about?.intro}
               </p>
               
               <p className={styles.paperParagraph}>
-                My specialty lies in translating complex brand identities into cohesive multi-platform layouts. Often executing at the intersection of branding, typography systems, and content management, I construct robust structures that balance visual hierarchy with optimized implementation protocols—including extensive mockups.
+                {about?.bio}
               </p>
             </div>
 
             {/* Sign-off */}
             <div className={`mt-12 pt-6 border-t ${styles.paperHeaderBorder} flex justify-between items-center text-xs ${styles.footerText}`}>
-              <span>Contact: hello@designerstudio.com</span>
-              <span className={`italic font-serif font-semibold ${styles.footerName}`}>Jake Pay</span>
+              <span>Contact: {about?.contact || "hello@designerstudio.com"}</span>
+              <span className={`italic font-serif font-semibold ${styles.footerName}`}>{about?.signoff || "Jake Pay"}</span>
             </div>
 
           </div>
@@ -115,7 +128,7 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
 
         {/* TextEdit Status bar */}
         <div className={`h-7 px-4 flex items-center justify-between shrink-0 text-[10.5px] font-sans select-none ${styles.statusBarBg}`}>
-          <span>Words: 89 &bull; Characters: 645</span>
+          <span>Words: {wordCount} &bull; Characters: {charCount}</span>
           <span>Zoom: 100%</span>
         </div>
       </div>

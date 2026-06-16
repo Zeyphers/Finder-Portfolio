@@ -16,7 +16,6 @@ import {
   Minus,
   FileText,
   HardDrive,
-  ExternalLink,
   Globe,
   Tag,
   Clock,
@@ -161,6 +160,15 @@ export default function Portfolio() {
   // Lightbox controller state
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxZoom, setLightboxZoom] = useState<number>(1);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Reset drag offset when lightbox index or zoom changes
+  useEffect(() => {
+    setDragOffset({ x: 0, y: 0 });
+    setIsDragging(false);
+  }, [lightboxIndex, lightboxZoom]);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -196,6 +204,58 @@ export default function Portfolio() {
   const closeLightbox = () => {
     setLightboxIndex(null);
     setLightboxZoom(1);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (lightboxZoom <= 1) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - dragOffset.x,
+      y: e.clientY - dragOffset.y
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || lightboxZoom <= 1) return;
+    e.preventDefault();
+    setDragOffset({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUpOrLeave = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      setDragOffset({ x: 0, y: 0 });
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (lightboxZoom <= 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({
+      x: touch.clientX - dragOffset.x,
+      y: touch.clientY - dragOffset.y
+    });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || lightboxZoom <= 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setDragOffset({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleTouchEnd = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      setDragOffset({ x: 0, y: 0 });
+    }
   };
 
   // Navigating history tracking
@@ -286,7 +346,7 @@ export default function Portfolio() {
           onClick={closeLightbox}
         >
           {/* Lightbox Toolbar Header */}
-          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 relative z-50" onClick={e => e.stopPropagation()}>
             <div className="flex items-center space-x-3">
               <button 
                 onClick={closeLightbox}
@@ -344,8 +404,24 @@ export default function Portfolio() {
 
             {/* Display Image with zoom capability or YouTube Video embed */}
             <div 
-              className={`relative max-w-full max-h-full p-2 overflow-hidden transition-transform duration-300 ease-out flex items-center justify-center ${selectedProject.gallery[lightboxIndex].isVideo ? "w-[85vw] md:w-[70vw] aspect-video" : "cursor-zoom-out"}`}
-              style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { transform: `scale(${lightboxZoom})` }}
+              className={`relative max-w-full max-h-full p-2 overflow-hidden flex items-center justify-center ${
+                selectedProject.gallery[lightboxIndex].isVideo 
+                  ? "w-[85vw] md:w-[70vw] aspect-video" 
+                  : lightboxZoom > 1 
+                    ? "cursor-grab active:cursor-grabbing" 
+                    : "cursor-zoom-out"
+              }`}
+              style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { 
+                transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(${lightboxZoom})`,
+                transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUpOrLeave}
+              onMouseLeave={handleMouseUpOrLeave}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
               onClick={e => e.stopPropagation()}
             >
               {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
@@ -385,7 +461,7 @@ export default function Portfolio() {
             className="w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 mt-4 h-fit shrink-0 select-text"
             onClick={e => e.stopPropagation()}
           >
-            <p className="font-serif leading-relaxed italic">{selectedProject.gallery[lightboxIndex].caption}</p>
+            <p className="font-sans leading-relaxed italic">{selectedProject.gallery[lightboxIndex].caption}</p>
           </div>
         </div>
       )}      {/* Main Finder Window container */}
@@ -511,7 +587,6 @@ export default function Portfolio() {
                         {getLinkIcon(link.iconName, "w-4.5 h-4.5")}
                         <span className="truncate">{link.name}</span>
                       </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                     </button>
                   </li>
                 ))}
@@ -603,9 +678,6 @@ export default function Portfolio() {
                           >
                             <div className={`w-[120px] h-[120px] ${isDark ? "bg-zinc-800/40 border border-white/5" : "bg-slate-100/70 border border-black/5"} rounded-2xl shadow-sm flex items-center justify-center relative mb-2 transition duration-300`}>
                               {getLargeLinkIcon(link.iconName, "w-[32px] h-[32px]")}
-                              <div className="absolute bottom-1.5 right-1.5 w-4 h-4 bg-slate-900 border border-slate-700 rounded-full flex items-center justify-center">
-                                <span className="text-[9px] text-sky-400 font-extrabold">↗</span>
-                              </div>
                             </div>
                             <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full group-hover:text-blue-500 transition-colors px-1`}>
                               {link.name.split(" ")[0]}.webloc

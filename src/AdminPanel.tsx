@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share } from "lucide-react";
-import { Project, GalleryImage } from "./types";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User } from "lucide-react";
+import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 
 export function AdminPanel() {
@@ -12,13 +12,22 @@ export function AdminPanel() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const { projects, refreshData } = useAppletData();
+  const { projects, about, refreshData } = useAppletData();
   const [localProjects, setLocalProjects] = useState<Project[]>(projects);
+  const [localAbout, setLocalAbout] = useState<AboutInfo>(about);
+  const [activeTab, setActiveTab] = useState<"folders" | "about">("folders");
   const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     setLocalProjects(JSON.parse(JSON.stringify(projects)));
   }, [projects]);
+
+  useEffect(() => {
+    if (about) {
+      setLocalAbout(JSON.parse(JSON.stringify(about)));
+    }
+  }, [about]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,14 +75,21 @@ export function AdminPanel() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ PROJECTS: localProjects, EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS })
+        body: JSON.stringify({ 
+          PROJECTS: localProjects, 
+          EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS,
+          ABOUT: localAbout
+        })
       });
       console.log("Save response status:", res.status);
       if (res.ok) {
         const resultData = await res.json();
         console.log("Save result:", resultData);
         await refreshData();
-        alert(resultData.githubSynced ? "Saved to server and synced to Github!" : "Saved to server, but Github Sync failed or is missing token.");
+        setSaveSuccess(true);
+        setTimeout(() => {
+          setSaveSuccess(false);
+        }, 3000);
       } else {
         const errText = await res.text();
         console.error("Save error response:", errText);
@@ -232,9 +248,23 @@ export function AdminPanel() {
             <Share className="w-4 h-4" />
             <span>Share Dashboard</span>
           </button>
-          <button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium transition flex items-center space-x-2 shadow-sm">
-            {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            <span>{saving ? "Saving..." : "Save Changes"}</span>
+          <button 
+            onClick={handleSave} 
+            disabled={saving} 
+            className={`${
+              saveSuccess 
+                ? "bg-green-600 hover:bg-green-700 focus:ring-green-500" 
+                : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
+            } disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm focus:outline-none focus:ring-2`}
+          >
+            {saving ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : saveSuccess ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span>{saving ? "Saving..." : saveSuccess ? "Changes saved" : "Save Changes"}</span>
           </button>
           <button onClick={handleLogout} className="text-slate-600 hover:bg-slate-100 px-3 py-2 rounded-md text-sm font-medium transition flex items-center space-x-2 border border-slate-200 bg-white shadow-sm">
             <LogOut className="w-4 h-4" />
@@ -247,16 +277,44 @@ export function AdminPanel() {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-slate-900">Folders / Projects</h2>
-          <button onClick={addFolder} className="bg-white border border-slate-300 hover:border-slate-400 text-slate-700 px-4 py-2 rounded-md text-sm font-medium transition flex items-center space-x-2 shadow-sm">
-            <Plus className="w-4 h-4" />
-            <span>New Folder</span>
+        {/* Tab switcher */}
+        <div className="flex space-x-1 border border-slate-200 mb-6 bg-slate-100 p-1 rounded-lg max-w-xs sm:max-w-sm">
+          <button
+            onClick={() => setActiveTab("folders")}
+            className={`flex-1 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center space-x-2 ${
+              activeTab === "folders"
+                ? "bg-white text-slate-800 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+          >
+            <Folder className="w-4 h-4" />
+            <span>Folders ({localProjects.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("about")}
+            className={`flex-1 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center space-x-2 ${
+              activeTab === "about"
+                ? "bg-white text-slate-800 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span>About Me</span>
           </button>
         </div>
 
-        <div className="space-y-8 pb-20">
-          {localProjects.map((project, folderIndex) => (
+        {activeTab === "folders" && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">Folders / Projects</h2>
+              <button onClick={addFolder} className="bg-white border border-slate-300 hover:border-slate-400 text-slate-700 px-4 py-2 rounded-md text-sm font-medium transition flex items-center space-x-2 shadow-sm">
+                <Plus className="w-4 h-4" />
+                <span>New Folder</span>
+              </button>
+            </div>
+
+            <div className="space-y-8 pb-20">
+              {localProjects.map((project, folderIndex) => (
             <div key={project.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 border-b border-slate-200 p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex-1 space-y-3 w-full">
@@ -379,6 +437,111 @@ export function AdminPanel() {
             </div>
           )}
         </div>
+          </>
+        )}
+
+        {activeTab === "about" && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6 max-w-4xl">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Edit About Me</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Customize the content that appears on your paper sheet in the "About Me.rtf" window.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Name</label>
+                <input
+                  type="text"
+                  value={localAbout?.name || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, name: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-medium"
+                  placeholder="e.g. Jake Pay"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Job Title</label>
+                <input
+                  type="text"
+                  value={localAbout?.title || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, title: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
+                  placeholder="e.g. Digital & Graphic Designer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Established Year</label>
+                <input
+                  type="text"
+                  value={localAbout?.established || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, established: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
+                  placeholder="e.g. 2021"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Location</label>
+                <input
+                  type="text"
+                  value={localAbout?.location || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, location: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
+                  placeholder="e.g. London, UK"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Contact Email</label>
+                <input
+                  type="text"
+                  value={localAbout?.contact || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, contact: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
+                  placeholder="e.g. hello@designerstudio.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Sign-off Name</label>
+                <input
+                  type="text"
+                  value={localAbout?.signoff || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, signoff: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
+                  placeholder="e.g. Jake Pay"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Intro Paragraph</label>
+                <textarea
+                  value={localAbout?.intro || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, intro: e.target.value })}
+                  rows={4}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none resize-none text-sm font-sans"
+                  placeholder="Short introductory bio paragraph."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Secondary Paragraph</label>
+                <textarea
+                  value={localAbout?.bio || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, bio: e.target.value })}
+                  rows={4}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none resize-none text-sm font-sans"
+                  placeholder="Second bio paragraph highlighting specialties, style etc."
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
