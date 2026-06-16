@@ -42,9 +42,9 @@ const requireAuth = (req: any, res: any, next: any) => {
 router.get("/data", async (req, res) => {
   try {
     const dataStore = getStore("data");
-    const data = await dataStore.get("data.json");
+    const data = await dataStore.get("data.json", { type: "json" });
     if (data) {
-      res.json(JSON.parse(data));
+      res.json(data);
     } else {
       res.json({ PROJECTS: [], EXTERNAL_LINKS: [] });
     }
@@ -56,11 +56,11 @@ router.get("/data", async (req, res) => {
 router.post("/data", requireAuth, async (req, res) => {
   try {
     const dataStore = getStore("data");
-    await dataStore.set("data.json", JSON.stringify(req.body, null, 2));
+    await dataStore.setJSON("data.json", req.body);
     res.json({ success: true, blobed: true });
   } catch (e: any) {
     console.error(e);
-    res.status(500).json({ error: "Failed to save data to Blob storage" });
+    res.status(500).json({ error: "Failed to save data to Blob storage", details: e.message || String(e), name: e.name });
   }
 });
 
@@ -76,7 +76,7 @@ router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
     const filename = `${name}-${Date.now()}.${ext}`;
     
     const imageStore = getStore("images");
-    await imageStore.set(filename, req.file.buffer, {
+    await imageStore.set(filename, new Blob([req.file.buffer], { type: req.file.mimetype }), {
       metadata: { contentType: req.file.mimetype }
     });
     
@@ -94,12 +94,13 @@ router.get("/images/:filename", async (req, res) => {
     const filename = req.params.filename;
     const imageStore = getStore("images");
     
-    const imageBlob = await imageStore.getBlob(filename);
-    if (!imageBlob) {
+    const ibuffer = await imageStore.get(filename, { type: "arrayBuffer" });
+    if (!ibuffer) {
       return res.status(404).send("Image not found");
     }
     
-    const buffer = Buffer.from(await imageBlob.arrayBuffer());
+    const buffer = Buffer.from(ibuffer);
+
     
     res.setHeader("Content-Type", "image/" + filename.split('.').pop()?.replace('jpg', 'jpeg') || "application/octet-stream");
     res.send(buffer);
@@ -138,4 +139,6 @@ router.get("/image-proxy", async (req, res) => {
 app.use("/api", router);
 app.use("/.netlify/functions/api", router);
 
-export const handler = serverless(app);
+export const handler = serverless(app, {
+  binary: ['multipart/form-data']
+});
