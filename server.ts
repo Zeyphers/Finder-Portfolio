@@ -9,7 +9,23 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,Authorization,Accept');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+    next();
+  });
+
   app.use(express.json());
 
   // Setup multer for memory storage so we can push to GitHub
