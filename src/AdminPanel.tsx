@@ -3,14 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
 import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw } from "lucide-react";
 import { Project, GalleryImage } from "./types";
-
-const getImageUrl = (url: string): string => {
-  if (!url) return "";
-  if (url.startsWith("http")) {
-    return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-  }
-  return url;
-};
+import { getApiUrl, getImageUrl } from "./api";
 
 export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
@@ -36,7 +29,7 @@ export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/login", {
+      const res = await fetch(getApiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
@@ -63,13 +56,13 @@ export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/data", {
+      const res = await fetch(getApiUrl("/api/data"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ PROJECTS: localProjects, EXTERNAL_LINKS: (await (await fetch("/api/data")).json()).EXTERNAL_LINKS })
+        body: JSON.stringify({ PROJECTS: localProjects, EXTERNAL_LINKS: (await (await fetch(getApiUrl("/api/data"))).json()).EXTERNAL_LINKS })
       });
       if (res.ok) {
         await refreshData();
@@ -129,7 +122,7 @@ export function AdminPanel({ isLogin = false }: { isLogin?: boolean }) {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/upload", {
+      const res = await fetch(getApiUrl("/api/upload"), {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body: formData

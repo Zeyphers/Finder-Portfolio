@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Project, ExternalLink } from "./types";
 import defaultData from "./data.json";
+import { getApiUrl } from "./api";
 
 interface DataContextType {
   projects: Project[];
@@ -20,7 +21,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const refreshData = async () => {
     try {
-      const res = await fetch("/api/data");
+      const res = await fetch(getApiUrl("/api/data"));
       if (res.ok) {
         const d = await res.json();
         setProjects(d.PROJECTS);

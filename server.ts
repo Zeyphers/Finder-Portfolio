@@ -10,9 +10,83 @@ async function startServer() {
 
   app.use(express.json());
 
+  // CORS middleware allowing requests from Netlify and localhost
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Setup multer for memory storage so we can push to GitHub
   const storage = multer.memoryStorage();
   const upload = multer({ storage });
+
+  // Helper to commit and push data.json back to GitHub so Netlify triggers a rebuild
+  async function pushDataToGithub(contentString: string): Promise<boolean> {
+    const repoOwner = process.env.GITHUB_OWNER || "Zeyphers";
+    const repoName = process.env.GITHUB_REPO || "Finder-Portfolio";
+    const branch = process.env.GITHUB_BRANCH || "main";
+    const token = process.env.GITHUB_TOKEN;
+
+    if (!token) {
+      console.warn("GitHub token is not configured; skipped pushing data.json to GitHub.");
+      return false;
+    }
+
+    const filePath = "src/data.json";
+    const githubUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
+
+    // Try fetching the existing file's SHA from GitHub
+    let sha: string | undefined;
+    try {
+      const getRes = await fetch(`${githubUrl}?ref=${branch}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "Portfolio-Admin-Applet"
+        }
+      });
+      if (getRes.ok) {
+        const getJson = await getRes.json();
+        sha = getJson.sha;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch existing sha for data.json from GitHub", err);
+    }
+
+    const base64Content = Buffer.from(contentString, "utf-8").toString("base64");
+
+    const putBody: any = {
+      message: "Update data.json via Admin Panel",
+      content: base64Content,
+      branch: branch
+    };
+    if (sha) {
+      putBody.sha = sha;
+    }
+
+    const putRes = await fetch(githubUrl, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "Portfolio-Admin-Applet"
+      },
+      body: JSON.stringify(putBody)
+    });
+
+    if (!putRes.ok) {
+      const errInfo = await putRes.json();
+      console.error("Failed to push data.json to GitHub:", errInfo);
+      return false;
+    }
+    return true;
+  }
 
   // API Routes
   app.post("/api/login", (req, res) => {
@@ -43,13 +117,19 @@ async function startServer() {
     }
   });
 
-  app.post("/api/data", requireAuth, (req, res) => {
+  app.post("/api/data", requireAuth, async (req, res) => {
     try {
       const dataPath = path.join(process.cwd(), "src/data.json");
-      fs.writeFileSync(dataPath, JSON.stringify(req.body, null, 2));
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ error: "Failed to save data" });
+      const contentString = JSON.stringify(req.body, null, 2);
+      fs.writeFileSync(dataPath, contentString);
+      
+      // Also push directly to GitHub so Netlify triggers a build and is kept in sync
+      const githubSuccess = await pushDataToGithub(contentString);
+      
+      res.json({ success: true, githubSynced: githubSuccess });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to save data: " + e.message });
     }
   });
 

@@ -3,6 +3,7 @@ import { FolderIcon } from "./components/FolderIcon";
 import { TextEditModal } from "./components/TextEditModal";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
+import { getImageUrl } from "./api";
 import { 
   Folder, 
   Search, 
@@ -62,13 +63,7 @@ const getYoutubeEmbedUrl = (url: string): string => {
   return url;
 };
 
-const getImageUrl = (url: string): string => {
-  if (!url) return "";
-  if (url.startsWith("http")) {
-    return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-  }
-  return url;
-};
+// getImageUrl is imported from api.ts
 
 export default function Portfolio() {
   const { projects: PROJECTS, links: EXTERNAL_LINKS } = useAppletData();
