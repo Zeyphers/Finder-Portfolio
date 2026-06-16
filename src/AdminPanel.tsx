@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw } from "lucide-react";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share } from "lucide-react";
 import { Project, GalleryImage } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 
@@ -184,6 +184,7 @@ export function AdminPanel() {
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Login</h1>
             <p className="text-sm text-slate-500 mt-2">Sign in to manage your portfolio</p>
+            <p className="text-xs text-slate-400 mt-2 break-all bg-slate-50 p-1 rounded font-mono">Backend: {getApiUrl("/api/login")}</p>
           </div>
           
           {error && <div className="mb-4 bg-red-50 text-red-600 text-sm p-3 rounded-md border border-red-200">{error}</div>}
@@ -221,6 +222,13 @@ export function AdminPanel() {
           </div>
         </div>
         <div className="flex items-center space-x-3">
+          <button onClick={() => {
+            navigator.clipboard.writeText(window.location.href);
+            alert("Admin Dashboard URL copied to clipboard!");
+          }} className="text-slate-600 hover:bg-slate-100 px-3 py-2 rounded-md text-sm font-medium transition flex items-center space-x-2 border border-slate-200 bg-white shadow-sm">
+            <Share className="w-4 h-4" />
+            <span>Share Dashboard</span>
+          </button>
           <button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium transition flex items-center space-x-2 shadow-sm">
             {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             <span>{saving ? "Saving..." : "Save Changes"}</span>
