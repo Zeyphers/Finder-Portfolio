@@ -139,6 +139,17 @@ router.get("/image-proxy", async (req, res) => {
 app.use("/api", router);
 app.use("/.netlify/functions/api", router);
 
-export const handler = serverless(app, {
+const expressHandler = serverless(app, {
   binary: ['multipart/form-data']
 });
+
+import { connectLambda } from "@netlify/blobs";
+
+export const handler = async (event: any, context: any) => {
+  try {
+    connectLambda(event);
+  } catch (e) {
+    console.error("Failed to connectLambda:", e);
+  }
+  return expressHandler(event, context);
+};
