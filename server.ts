@@ -26,7 +26,8 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // Setup multer for memory storage so we can push to GitHub
   const storage = multer.memoryStorage();
@@ -140,16 +141,14 @@ async function startServer() {
     }
   });
 
-  app.post("/api/upload", requireAuth, async (req, res) => {
-    const { fileName, fileType, fileData } = req.body;
-    
-    if (!fileData || !fileName) {
-      return res.status(400).json({ error: "No file data uploaded" });
+  app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
     }
     
     try {
-      const ext = path.extname(fileName);
-      const name = path.basename(fileName, ext).replace(/[^a-zA-Z0-9]/g, "-");
+      const ext = path.extname(req.file.originalname);
+      const name = path.basename(req.file.originalname, ext).replace(/[^a-zA-Z0-9]/g, "-");
       const newFilename = `${name}-${Date.now()}${ext}`;
       
       const repoOwner = process.env.GITHUB_OWNER || "Zeyphers";
@@ -164,8 +163,7 @@ async function startServer() {
       const filePath = `portfolio-assets/${newFilename}`;
       const githubUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
       
-      // Extract pure base64 from data URL
-      const base64Content = fileData.split(",")[1];
+      const base64Content = req.file.buffer.toString("base64");
       
       const githubRes = await fetch(githubUrl, {
         method: "PUT",

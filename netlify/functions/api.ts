@@ -11,7 +11,8 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -70,26 +71,23 @@ router.post("/data", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/upload", requireAuth, async (req, res) => {
-  const { fileName, fileType, fileData } = req.body;
-
-  if (!fileData || !fileName) {
-    return res.status(400).json({ error: "No file data uploaded" });
+router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
   }
   
   try {
-    const originalName = fileName;
+    const originalName = req.file.originalname;
     const ext = originalName.slice((originalName.lastIndexOf(".") - 1 >>> 0) + 2);
     const name = originalName.replace(`.${ext}`, "").replace(/[^a-zA-Z0-9]/g, "-");
     const newFilename = `${name}-${Date.now()}.${ext}`;
     
-    // fileData is a dataURL like "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
-    const base64String = fileData.split(",")[1];
-    const bufferArray = Buffer.from(base64String, "base64");
+    // We convert the Buffer to an ArrayBuffer for Netlify Blobs
+    const bufferArray = new Uint8Array(req.file.buffer).buffer;
     
     const imageStore = getStore("images");
-    await imageStore.set(newFilename, new Blob([bufferArray], { type: fileType }), {
-      metadata: { contentType: fileType }
+    await imageStore.set(newFilename, bufferArray, {
+      metadata: { contentType: req.file.mimetype }
     });
     
     const url = `/.netlify/functions/api/images/${newFilename}`;
@@ -153,7 +151,7 @@ app.use("/api", router);
 app.use("/.netlify/functions/api", router);
 
 const expressHandler = serverless(app, {
-  binary: ['*/*']
+  binary: ['multipart/form-data']
 });
 
 import { connectLambda } from "@netlify/blobs";
