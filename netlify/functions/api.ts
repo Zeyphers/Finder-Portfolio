@@ -61,7 +61,7 @@ router.post("/contact", async (req, res) => {
     `;
 
     const { data, error } = await resend.emails.send({
-      from: "Portfolio Contact <onboarding@resend.dev>",
+      from: "onboarding@resend.dev",
       to: ["jakeypay@gmail.com"],
       subject: `Portfolio Contact: ${subject}`,
       html: htmlContent,

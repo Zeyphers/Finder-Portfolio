@@ -605,6 +605,17 @@ export function AdminPanel() {
                   placeholder="e.g. Jake Pay"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Browser Tab Icon URL</label>
+                <input
+                  type="text"
+                  value={localAbout?.tabIconUrl || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, tabIconUrl: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
+                  placeholder="https://example.com/favicon.png"
+                />
+              </div>
             </div>
 
             <div className="space-y-4">
