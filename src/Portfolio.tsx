@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { FolderIcon } from "./components/FolderIcon";
 import { TextEditModal } from "./components/TextEditModal";
 import { MemoryGameApp } from "./components/MemoryGameApp";
-import { ProgressiveImage } from "./components/ProgressiveImage";
+import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
@@ -72,14 +72,27 @@ export default function Portfolio() {
   
   // Preload image dimensions so masonry doesn't jump
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
+  const preloadedRef = React.useRef<Set<string>>(new Set());
   
   useEffect(() => {
     PROJECTS.forEach(p => {
+      // Preload folder icon
+      if (p.folderIconImage && !preloadedRef.current.has(p.folderIconImage)) {
+        preloadedRef.current.add(p.folderIconImage);
+        const folderImg = new Image();
+        folderImg.src = p.folderIconImage;
+        folderImg.onload = () => {
+          loadedImagesCache.add(p.folderIconImage!);
+        };
+      }
       p.gallery.forEach(img => {
-        if (!imageAspectRatios[img.url]) {
+        if (!preloadedRef.current.has(img.url)) {
+          preloadedRef.current.add(img.url);
           const i = new Image();
-          i.src = getImageUrl(img.url);
+          const pUrl = getImageUrl(img.url);
+          i.src = pUrl;
           i.onload = () => {
+            loadedImagesCache.add(pUrl);
             if (i.width && i.height) {
               setImageAspectRatios(prev => ({ ...prev, [img.url]: i.width / i.height }));
             }
@@ -87,7 +100,7 @@ export default function Portfolio() {
         }
       });
     });
-  }, [PROJECTS, imageAspectRatios]);
+  }, [PROJECTS]);
 
   // Navigation active state can be "overview" or the ID of a project ("project-1", "project-2", etc.)
   const [activeSelection, setActiveSelection] = useState<string>("overview");
@@ -502,7 +515,7 @@ export default function Portfolio() {
         dragControls={dragControls}
         dragMomentum={false}
         id="finder-window"
-        className={`theme-transition w-full max-w-[1550px] h-full sm:h-[88vh] min-h-[720px] ${styles.windowBg} rounded-[28px] overflow-hidden flex flex-col relative shadow-[0_30px_90px_-15px_rgba(0,0,0,0.4)]`}
+        className={`theme-transition w-full max-w-[1550px] h-full sm:h-[88vh] sm:min-h-[720px] ${styles.windowBg} rounded-none sm:rounded-[28px] overflow-hidden flex flex-col relative shadow-none sm:shadow-[0_30px_90px_-15px_rgba(0,0,0,0.4)]`}
       >
         {/* Header 1: macOS traffic lights and centered directory label */}
         <div 
@@ -769,6 +782,11 @@ export default function Portfolio() {
                   
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
                   <div className="flex-1 overflow-y-auto min-h-0 w-full scrollbar-thin p-2.5">
+                    {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && (
+                      <div className={`mb-6 mt-2 px-2 text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap ${styles.textSecondary}`}>
+                        {selectedProject.description}
+                      </div>
+                    )}
                     <div className="columns-2 md:columns-4 gap-[10px] space-y-[10px]">
                       {selectedProject.gallery.map((img, index) => {
                         const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
@@ -829,8 +847,8 @@ export default function Portfolio() {
         </div>
 
         {/* Header 4: Standard bottom status bar details */}
-        <div className={`theme-transition ${styles.statusBarBg} py-3.5 px-6 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 text-xs sm:text-[13px] select-none shadow-inner`}>
-          <div className="flex items-center space-x-2 min-w-0 max-w-full">
+        <div className={`theme-transition ${styles.statusBarBg} py-3.5 px-6 flex flex-row items-center justify-between gap-3 shrink-0 text-xs sm:text-[13px] select-none shadow-inner`}>
+          <div className="hidden sm:flex items-center space-x-2 min-w-0 max-w-full">
             <HardDrive className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
             <span className="font-medium tracking-wide truncate whitespace-nowrap">
               {activeSelection === "overview" 
@@ -839,11 +857,13 @@ export default function Portfolio() {
             </span>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 sm:gap-6 text-right shrink-0">
-            <span className="font-mono text-[11px] text-slate-500 whitespace-nowrap shrink-0">© {new Date().getFullYear()} Jacob Szczepaniak. All rights reserved.</span>
+          <div className="flex items-center justify-between w-full sm:w-auto gap-4 sm:gap-6 text-right shrink-0">
+            <span className="font-mono text-[11px] text-slate-500 whitespace-nowrap flex-1 text-left sm:flex-none sm:text-right shrink-0">
+              © {new Date().getFullYear()} Jacob Szczepaniak<span className="hidden sm:inline">. All rights reserved.</span>
+            </span>
             
             {/* Theme Toggle Button with Fading effect */}
-            <div className={`flex items-center border-l ${isDark ? "border-white/10" : "border-black/10"} pl-4 shrink-0`}>
+            <div className={`flex items-center border-l pl-4 shrink-0 ${isDark ? "border-white/10" : "border-black/10"}`}>
               <button 
                 onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
                 className={`flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full font-semibold cursor-pointer active:scale-95 ${

@@ -86,10 +86,10 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
           </div>
 
           {/* Centered Title */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className={`flex items-center space-x-1.5 text-[15px] font-[600] tracking-wide ${styles.titleText}`}>
-              <FileText className="w-3.5 h-3.5 text-orange-400" />
-              <span>About Me.rtf — TextEdit</span>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-16">
+            <div className={`flex items-center space-x-1.5 text-[14px] sm:text-[15px] font-[600] tracking-wide ${styles.titleText} truncate`}>
+              <FileText className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+              <span className="truncate">About Me.rtf<span className="hidden sm:inline"> — TextEdit</span></span>
             </div>
           </div>
 

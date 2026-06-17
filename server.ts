@@ -224,6 +224,7 @@ async function startServer() {
       if (contentType) {
         res.setHeader("Content-Type", contentType);
       }
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       const buffer = await upstreamRes.arrayBuffer();
       res.send(Buffer.from(buffer));
     } catch (e: any) {

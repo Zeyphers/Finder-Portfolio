@@ -381,7 +381,7 @@ export function AdminPanel() {
                       <textarea 
                         value={project.description} 
                         onChange={e => updateFolder(project.id, { description: e.target.value })} 
-                        rows={2}
+                        rows={4}
                         className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none resize-none text-sm"
                       />
                     </div>
