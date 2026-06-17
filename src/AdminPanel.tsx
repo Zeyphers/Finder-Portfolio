@@ -158,6 +158,12 @@ export function AdminPanel() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 4.5 * 1024 * 1024) {
+      alert("File is too large! Netlify Functions have a strict ~6MB JSON payload limit. Please use files under 4.5MB.");
+      e.target.value = "";
+      return;
+    }
+
     try {
       const base64Content = await fileToBase64(file);
       const res = await fetch(getApiUrl("/api/upload"), {
@@ -172,7 +178,14 @@ export function AdminPanel() {
           fileBase64: base64Content
         })
       });
-      const data = await res.json();
+      
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        throw new Error(`Server returned a non-JSON response (Status ${res.status}). The file might be too large.`);
+      }
+
       if (data.success) {
         updateFolder(projectId, { folderIconImage: data.url });
       } else {
@@ -194,6 +207,11 @@ export function AdminPanel() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
+        if (file.size > 4.5 * 1024 * 1024) {
+          alert(`File ${file.name} is too large! Netlify Functions have a strict payload limit. Please use files under 4.5MB.`);
+          continue;
+        }
+
         const base64Content = await fileToBase64(file);
         const res = await fetch(getApiUrl("/api/upload"), {
           method: "POST",
@@ -207,7 +225,14 @@ export function AdminPanel() {
             fileBase64: base64Content
           })
         });
-        const data = await res.json();
+        
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          throw new Error(`Server returned a non-JSON response (Status ${res.status}) on file ${file.name}. The file might be too large.`);
+        }
+
         if (data.success) {
           newGalleryItems.push({ url: data.url, caption: "New Image" });
         } else {

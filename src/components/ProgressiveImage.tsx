@@ -37,9 +37,11 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
   return (
     <div className={`relative ${containerClassName || className || ""}`}>
       {/* Loading Placeholder */}
-      <div 
-        className={`absolute inset-0 bg-slate-200/50 dark:bg-slate-700/50 animate-pulse rounded-[inherit] transition-opacity duration-300 ${loaded ? "opacity-0 pointer-events-none" : "opacity-100"}`} 
-      />
+      {objectFit !== "contain" && (
+        <div 
+          className={`absolute inset-0 bg-slate-200/50 dark:bg-slate-700/50 animate-pulse rounded-[inherit] transition-opacity duration-300 ${loaded ? "opacity-0 pointer-events-none" : "opacity-100"}`} 
+        />
+      )}
       
       {/* High Quality Image */}
       <img
