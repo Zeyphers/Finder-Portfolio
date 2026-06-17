@@ -71,23 +71,31 @@ router.post("/data", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
-  if (!req.file) {
+router.post("/upload", requireAuth, async (req, res) => {
+  let base64String: string;
+  let originalName: string;
+  let mimeType: string;
+
+  if (req.body && req.body.fileBase64) {
+    base64String = req.body.fileBase64;
+    originalName = req.body.fileName;
+    mimeType = req.body.mimeType;
+  } else {
     return res.status(400).json({ error: "No file uploaded" });
   }
   
   try {
-    const originalName = req.file.originalname;
     const ext = originalName.slice((originalName.lastIndexOf(".") - 1 >>> 0) + 2);
     const name = originalName.replace(`.${ext}`, "").replace(/[^a-zA-Z0-9]/g, "-");
     const newFilename = `${name}-${Date.now()}.${ext}`;
     
-    // We convert the Buffer to an ArrayBuffer for Netlify Blobs
-    const bufferArray = new Uint8Array(req.file.buffer).buffer;
+    // Decode base64 to buffer, then to ArrayBuffer
+    const buffer = Buffer.from(base64String, 'base64');
+    const bufferArray = new Uint8Array(buffer).buffer;
     
     const imageStore = getStore("images");
     await imageStore.set(newFilename, bufferArray, {
-      metadata: { contentType: req.file.mimetype }
+      metadata: { contentType: mimeType }
     });
     
     const url = `/.netlify/functions/api/images/${newFilename}`;

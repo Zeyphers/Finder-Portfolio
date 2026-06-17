@@ -141,14 +141,21 @@ async function startServer() {
     }
   });
 
-  app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
-    if (!req.file) {
+  app.post("/api/upload", requireAuth, async (req, res) => {
+    // Determine whether request is formData (req.file) or base64 JSON (req.body.fileBase64)
+    let buffer: Buffer;
+    let originalName: string;
+
+    if (req.body && req.body.fileBase64) {
+      buffer = Buffer.from(req.body.fileBase64, "base64");
+      originalName = req.body.fileName;
+    } else {
       return res.status(400).json({ error: "No file uploaded" });
     }
     
     try {
-      const ext = path.extname(req.file.originalname);
-      const name = path.basename(req.file.originalname, ext).replace(/[^a-zA-Z0-9]/g, "-");
+      const ext = path.extname(originalName);
+      const name = path.basename(originalName, ext).replace(/[^a-zA-Z0-9]/g, "-");
       const newFilename = `${name}-${Date.now()}${ext}`;
       
       const repoOwner = process.env.GITHUB_OWNER || "Zeyphers";
@@ -163,7 +170,7 @@ async function startServer() {
       const filePath = `portfolio-assets/${newFilename}`;
       const githubUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
       
-      const base64Content = req.file.buffer.toString("base64");
+      const base64Content = req.body.fileBase64;
       
       const githubRes = await fetch(githubUrl, {
         method: "PUT",

@@ -142,18 +142,35 @@ export function AdminPanel() {
     }));
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(',')[1]);
+      };
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFolderIconUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
+      const base64Content = await fileToBase64(file);
       const res = await fetch(getApiUrl("/api/upload"), {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}` },
-        body: formData
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type,
+          fileBase64: base64Content
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -176,13 +193,19 @@ export function AdminPanel() {
       const newGalleryItems: { url: string, caption: string }[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const formData = new FormData();
-        formData.append("file", file);
-
+        
+        const base64Content = await fileToBase64(file);
         const res = await fetch(getApiUrl("/api/upload"), {
           method: "POST",
-          headers: { "Authorization": `Bearer ${token}` },
-          body: formData
+          headers: { 
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            mimeType: file.type,
+            fileBase64: base64Content
+          })
         });
         const data = await res.json();
         if (data.success) {
