@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User } from "lucide-react";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
@@ -16,7 +16,7 @@ export function AdminPanel() {
   const { projects, about, refreshData } = useAppletData();
   const [localProjects, setLocalProjects] = useState<Project[]>(projects);
   const [localAbout, setLocalAbout] = useState<AboutInfo>(about);
-  const [activeTab, setActiveTab] = useState<"folders" | "about">("folders");
+  const [activeTab, setActiveTab] = useState<"folders" | "about" | "settings">("folders");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -350,7 +350,7 @@ export function AdminPanel() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         {/* Tab switcher */}
-        <div className="flex space-x-1 border border-slate-200 mb-6 bg-slate-100 p-1 rounded-lg max-w-xs sm:max-w-sm">
+        <div className="flex space-x-1 border border-slate-200 mb-6 bg-slate-100 p-1 rounded-lg max-w-md">
           <button
             onClick={() => setActiveTab("folders")}
             className={`flex-1 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center space-x-2 ${
@@ -372,6 +372,17 @@ export function AdminPanel() {
           >
             <User className="w-4 h-4" />
             <span>About Me</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("settings")}
+            className={`flex-1 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center space-x-2 ${
+              activeTab === "settings"
+                ? "bg-white text-slate-800 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Settings</span>
           </button>
         </div>
 
@@ -605,17 +616,6 @@ export function AdminPanel() {
                   placeholder="e.g. Jake Pay"
                 />
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Browser Tab Icon URL</label>
-                <input
-                  type="text"
-                  value={localAbout?.tabIconUrl || ""}
-                  onChange={e => setLocalAbout({ ...localAbout, tabIconUrl: e.target.value })}
-                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
-                  placeholder="https://example.com/favicon.png"
-                />
-              </div>
             </div>
 
             <div className="space-y-4">
@@ -639,6 +639,45 @@ export function AdminPanel() {
                   className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none resize-none text-sm font-sans"
                   placeholder="Second bio paragraph highlighting specialties, style etc."
                 />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "settings" && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6 max-w-2xl">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Application Settings</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Configure global settings for the applet.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Browser Tab Icon URL</label>
+                <input
+                  type="text"
+                  value={localAbout?.tabIconUrl || ""}
+                  onChange={e => setLocalAbout({ ...localAbout, tabIconUrl: e.target.value })}
+                  className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
+                  placeholder="https://example.com/favicon.png"
+                />
+                <p className="text-xs text-slate-500 mt-1">This icon appears in the browser tab beside the title.</p>
+              </div>
+
+              <div className="flex items-center space-x-3 bg-slate-50 border border-slate-200 p-4 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="disableCooldown"
+                  checked={localAbout?.disableContactCooldown === true}
+                  onChange={e => setLocalAbout({ ...localAbout, disableContactCooldown: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="disableCooldown" className="flex flex-col cursor-pointer">
+                  <span className="text-sm font-semibold text-slate-800">Disable Contact Form Cooldown</span>
+                  <span className="text-xs text-slate-500">Allows multiple messages to be sent within 10 minutes (useful for testing).</span>
+                </label>
               </div>
             </div>
           </div>

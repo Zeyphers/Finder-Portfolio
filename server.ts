@@ -103,11 +103,15 @@ async function startServer() {
 
   app.post("/api/contact", async (req, res) => {
     try {
+      const dataPath = path.join(process.cwd(), "src/data.json");
+      const appData = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
+      const isCooldownDisabled = appData.ABOUT?.disableContactCooldown === true;
+
       const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown").toString().split(",")[0].trim();
       const now = Date.now();
       
       const lastSent = emailRateLimits.get(ip);
-      if (lastSent && now - lastSent < 10 * 60 * 1000) {
+      if (!isCooldownDisabled && lastSent && now - lastSent < 10 * 60 * 1000) {
         return res.status(429).json({ success: false, error: "Please wait 10 minutes before sending another message." });
       }
 

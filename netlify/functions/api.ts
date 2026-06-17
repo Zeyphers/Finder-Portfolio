@@ -24,9 +24,21 @@ router.post("/contact", async (req, res) => {
     const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").toString().split(",")[0].trim();
     const now = Date.now();
     
+    let isCooldownDisabled = false;
+    const dataStore = getStore("data");
+    const ObjectData = await dataStore.get("data.json", { type: "json" }) as any;
+    if (ObjectData && ObjectData.ABOUT?.disableContactCooldown === true) {
+      isCooldownDisabled = true;
+    } else {
+      const defaultDataReq = await import("../../src/data.json");
+      if ((defaultDataReq.default as any)?.ABOUT?.disableContactCooldown === true) {
+        isCooldownDisabled = true;
+      }
+    }
+
     const rateLimitStore = getStore("ratelimits");
     const lastSentStr = await rateLimitStore.get(ip, { type: "text" });
-    if (lastSentStr) {
+    if (!isCooldownDisabled && lastSentStr) {
       const lastSent = parseInt(lastSentStr, 10);
       if (now - lastSent < 10 * 60 * 1000) {
         return res.status(429).json({ success: false, error: "Please wait 10 minutes before sending another message." });

@@ -46,6 +46,7 @@ export interface AboutInfo {
   contact: string;
   signoff: string;
   tabIconUrl?: string;
+  disableContactCooldown?: boolean;
 }
 
 export interface SidebarItem {
