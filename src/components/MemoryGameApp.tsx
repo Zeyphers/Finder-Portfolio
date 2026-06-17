@@ -3,6 +3,8 @@ import { Project, GalleryImage } from "../types";
 import { motion, useDragControls } from "motion/react";
 import { X, RefreshCcw } from "lucide-react";
 
+import { ProgressiveImage } from "./ProgressiveImage";
+
 interface MemoryGameProps {
   onClose: () => void;
   projects: Project[];
@@ -110,14 +112,14 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
   const isWin = matches === 6 && cards.length > 0;
 
   const styles = {
-    backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none",
+    backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none pointer-events-none",
     windowBg: isDark 
-      ? "relative w-full max-w-3xl h-[650px] bg-[#2a2a2c] rounded-xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200" 
-      : "relative w-full max-w-3xl h-[650px] bg-[#f5f5f7] rounded-xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-black/15 flex flex-col font-sans text-[#1f2937]",
+      ? "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#282828] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200 pointer-events-auto" 
+      : "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#F5F5F4] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.25)] border border-black/15 flex flex-col font-sans text-[#1f2937] pointer-events-auto",
     titleBarBg: isDark 
-      ? "cursor-grab active:cursor-grabbing bg-[#3a3a3c] h-10 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative" 
-      : "cursor-grab active:cursor-grabbing bg-[#ececed] h-10 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative",
-    titleText: isDark ? "text-slate-300" : "text-slate-700",
+      ? "cursor-grab active:cursor-grabbing bg-[#333333] h-12 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative pointer-events-auto" 
+      : "cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto",
+    titleText: isDark ? "text-slate-300 drop-shadow-sm" : "text-slate-800 drop-shadow-sm",
   };
 
   return (
@@ -135,23 +137,23 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
           <div className="flex space-x-2 z-10" onPointerDown={(e) => e.stopPropagation()}>
             <button 
               onClick={onClose}
-              className="group w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer transition-colors active:bg-[#C23C37]"
+              className="group w-[14px] h-[14px] rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer transition-colors active:bg-[#C23C37]"
             >
-              <X className="w-2 h-2 opacity-0 group-hover:opacity-100 text-[#4C0002]" />
+              <X className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-[#4C0002]" />
             </button>
-            <div className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]"></div>
-            <div className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]"></div>
+            <div className="w-[14px] h-[14px] rounded-full bg-[#FFBD2E] border border-[#DEA123]"></div>
+            <div className="w-[14px] h-[14px] rounded-full bg-[#27C93F] border border-[#1AAB29]"></div>
           </div>
           
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className={`text-xs font-semibold tracking-wider ${styles.titleText}`}>Memory</span>
+            <span className={`text-[15px] font-[600] tracking-wide ${styles.titleText}`}>Memory</span>
           </div>
           
           <div className="w-12 z-10"></div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col items-center justify-start p-6 overflow-y-auto">
+        <div className="flex-1 flex flex-col items-center justify-start p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {allImages.length < 2 ? (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-center opacity-70">Not enough images uploaded in your projects to play.<br/>Please add at least 2 images to your projects.</p>
@@ -196,7 +198,12 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
                       
                       {/* Front of card (visible when flipped) */}
                       <div className="absolute w-full h-full rounded-xl [backface-visibility:hidden] [transform:rotateY(180deg)] overflow-hidden shadow-lg border-2 border-blue-500/50 bg-black">
-                        <img src={card.imageUrl} alt="Card face" className="w-full h-full object-cover" />
+                        <ProgressiveImage 
+                          src={card.imageUrl} 
+                          alt="Card face" 
+                          objectFit="cover"
+                          containerClassName="w-full h-full" 
+                        />
                         
                         {card.isMatched && (
                           <div className="absolute inset-0 bg-white/20 dark:bg-white/10" />

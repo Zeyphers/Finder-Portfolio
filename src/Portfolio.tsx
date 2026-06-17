@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { FolderIcon } from "./components/FolderIcon";
 import { TextEditModal } from "./components/TextEditModal";
 import { MemoryGameApp } from "./components/MemoryGameApp";
+import { ProgressiveImage } from "./components/ProgressiveImage";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
@@ -442,10 +443,12 @@ export default function Portfolio() {
                   allowFullScreen
                 ></iframe>
               ) : (
-                <img 
+                <ProgressiveImage 
                   src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
                   alt="High Resolution Portfolio Asset"
-                  className="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] object-contain rounded-md shadow-2xl pointer-events-none"
+                  objectFit="contain"
+                  containerClassName="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] rounded-md shadow-2xl pointer-events-none"
+                  className="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] object-contain rounded-md"
                   referrerPolicy="no-referrer"
                 />
               )}
@@ -638,7 +641,13 @@ export default function Portfolio() {
                           >
                             {project.folderIconImage ? (
                               <div className="w-[140px] h-[140px] mb-1 flex items-center justify-center p-1">
-                                <img src={project.folderIconImage} alt={project.name} className="max-w-full max-h-full object-contain drop-shadow-md" />
+                                <ProgressiveImage 
+                                  src={project.folderIconImage} 
+                                  alt={project.name} 
+                                  objectFit="contain"
+                                  className="max-w-full max-h-full drop-shadow-md" 
+                                  containerClassName="w-full h-full flex items-center justify-center"
+                                />
                               </div>
                             ) : (
                               <FolderIcon 
@@ -764,10 +773,12 @@ export default function Portfolio() {
                           >
                             {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
                             <div className="w-full flex items-center justify-center p-1 relative">
-                              <img 
+                              <ProgressiveImage 
                                 src={getImageUrl(img.url)} 
                                 alt={img.caption}
-                                className="w-full h-auto object-contain"
+                                objectFit="contain"
+                                className="w-full h-auto"
+                                containerClassName="w-full"
                                 referrerPolicy="no-referrer"
                               />
                               
@@ -809,7 +820,7 @@ export default function Portfolio() {
           </div>
 
           <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 sm:gap-6 text-right shrink-0">
-            <span className="font-mono text-[11px] text-slate-500 whitespace-nowrap shrink-0">23.24 GB free of 256 GB NVMe</span>
+            <span className="font-mono text-[11px] text-slate-500 whitespace-nowrap shrink-0">© {new Date().getFullYear()} Jacob Szczepaniak. All rights reserved.</span>
             
             {/* Theme Toggle Button with Fading effect */}
             <div className={`flex items-center border-l ${isDark ? "border-white/10" : "border-black/10"} pl-4 shrink-0`}>

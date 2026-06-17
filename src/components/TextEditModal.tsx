@@ -17,14 +17,14 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
   const dragControls = useDragControls();
   
   const styles = React.useMemo(() => ({
-    backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none",
+    backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none pointer-events-none",
     windowBg: isDark 
-      ? "relative w-full max-w-3xl h-[650px] bg-[#2a2a2c] rounded-xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200" 
-      : "relative w-full max-w-3xl h-[650px] bg-[#f5f5f7] rounded-xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-black/15 flex flex-col font-sans text-[#1f2937]",
+      ? "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#282828] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200 pointer-events-auto" 
+      : "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#F5F5F4] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.25)] border border-black/15 flex flex-col font-sans text-[#1f2937] pointer-events-auto",
     titleBarBg: isDark 
-      ? "drag-handle cursor-grab active:cursor-grabbing bg-[#3a3a3c] h-10 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative" 
-      : "drag-handle cursor-grab active:cursor-grabbing bg-[#ececed] h-10 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative",
-    titleText: isDark ? "text-slate-300" : "text-slate-700",
+      ? "drag-handle cursor-grab active:cursor-grabbing bg-[#333333] h-12 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative pointer-events-auto" 
+      : "drag-handle cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto",
+    titleText: isDark ? "text-slate-300 drop-shadow-sm" : "text-slate-800 drop-shadow-sm",
     editorBg: isDark ? "bg-[#1c1c1e]" : "bg-[#dedede]",
     paperBg: isDark 
       ? "w-full max-w-xl h-fit bg-[#252526] text-slate-100 p-8 sm:p-10 rounded-xs shadow-[0_10px_25px_rgba(0,0,0,0.6)] border border-zinc-700 font-serif leading-relaxed text-sm select-text selection:bg-[#3063d4]/30" 
@@ -72,22 +72,22 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
           <div className="flex space-x-2 z-10" onPointerDown={(e) => e.stopPropagation()}>
             <button 
               onClick={onClose}
-              className="group w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer transition-colors active:bg-[#C23C37]"
+              className="group w-[14px] h-[14px] rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer transition-colors active:bg-[#C23C37]"
               title="Close"
             >
-              <X className="w-2 h-2 text-[#4C0002] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
+              <X className="w-2.5 h-2.5 text-[#4C0002] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
             </button>
-            <div className="group w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-not-allowed">
-              <Minus className="w-2 h-2 text-[#5C3E00] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
+            <div className="group w-[14px] h-[14px] rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-not-allowed">
+              <Minus className="w-2.5 h-2.5 text-[#5C3E00] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
             </div>
-            <div className="group w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-not-allowed">
-              <span className="text-[6px] text-[#024B0E] font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">+</span>
+            <div className="group w-[14px] h-[14px] rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-not-allowed">
+              <span className="text-[8px] text-[#024B0E] font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">+</span>
             </div>
           </div>
 
           {/* Centered Title */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className={`flex items-center space-x-1.5 text-xs font-semibold ${styles.titleText}`}>
+            <div className={`flex items-center space-x-1.5 text-[15px] font-[600] tracking-wide ${styles.titleText}`}>
               <FileText className="w-3.5 h-3.5 text-orange-400" />
               <span>About Me.rtf — TextEdit</span>
             </div>

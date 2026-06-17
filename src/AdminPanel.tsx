@@ -4,6 +4,7 @@ import { useAppletData } from "./DataContext";
 import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
+import { ProgressiveImage } from "./components/ProgressiveImage";
 
 export function AdminPanel() {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
@@ -141,7 +142,7 @@ export function AdminPanel() {
     }));
   };
 
-  const handleFileUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolderIconUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -156,15 +157,7 @@ export function AdminPanel() {
       });
       const data = await res.json();
       if (data.success) {
-        setLocalProjects(localProjects.map(p => {
-          if (p.id === projectId) {
-            return {
-              ...p,
-              gallery: [...p.gallery, { url: data.url, caption: "New Image" }]
-            };
-          }
-          return p;
-        }));
+        updateFolder(projectId, { folderIconImage: data.url });
       } else {
         alert("Upload failed: " + (data.error || "Unknown error"));
       }
@@ -172,6 +165,50 @@ export function AdminPanel() {
       console.error("Upload error", err);
       alert("Upload error: " + (err.message || String(err)));
     }
+    e.target.value = "";
+  };
+
+  const handleFileUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      const newGalleryItems: { url: string, caption: string }[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(getApiUrl("/api/upload"), {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          newGalleryItems.push({ url: data.url, caption: "New Image" });
+        } else {
+          alert("Upload failed for " + file.name + ": " + (data.error || "Unknown error"));
+        }
+      }
+      
+      if (newGalleryItems.length > 0) {
+        setLocalProjects(localProjects.map(p => {
+          if (p.id === projectId) {
+            return {
+              ...p,
+              gallery: [...p.gallery, ...newGalleryItems]
+            };
+          }
+          return p;
+        }));
+      }
+    } catch (err: any) {
+      console.error("Upload error", err);
+      alert("Upload error: " + (err.message || String(err)));
+    }
+    
+    e.target.value = "";
   };
 
   const updateImageField = (projectId: string, imageIndex: number, field: "caption" | "videoUrl", value: string) => {
@@ -349,14 +386,20 @@ export function AdminPanel() {
                       />
                     </div>
                     <div className="w-full sm:w-1/3">
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Custom Folder Icon URL</label>
-                      <input 
-                        type="text" 
-                        placeholder="Leave blank for generic icon"
-                        value={project.folderIconImage || ""} 
-                        onChange={e => updateFolder(project.id, { folderIconImage: e.target.value })} 
-                        className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
-                      />
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Custom Folder Icon</label>
+                      <div className="flex space-x-2">
+                        <input 
+                          type="text" 
+                          placeholder="URL or Upload ->"
+                          value={project.folderIconImage || ""} 
+                          onChange={e => updateFolder(project.id, { folderIconImage: e.target.value })} 
+                          className="flex-1 w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none min-w-0"
+                        />
+                        <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-md text-sm font-medium transition flex items-center shrink-0 border border-slate-300">
+                          <Upload className="w-4 h-4" />
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleFolderIconUpload(project.id, e)} />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -374,8 +417,8 @@ export function AdminPanel() {
                   <div className="flex space-x-2">
                     <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-md text-sm font-medium transition flex items-center space-x-1.5 border border-slate-300">
                       <Upload className="w-4 h-4" />
-                      <span>Upload Image</span>
-                      <input type="file" accept="image/*,.gif" className="hidden" onChange={e => handleFileUpload(project.id, e)} />
+                      <span>Upload Images</span>
+                      <input type="file" multiple accept="image/*,.gif" className="hidden" onChange={e => handleFileUpload(project.id, e)} />
                     </label>
                     <button onClick={() => addYouTubeLink(project.id)} className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium transition flex items-center space-x-1.5 border border-red-200">
                       <FileVideo className="w-4 h-4" />
@@ -395,13 +438,13 @@ export function AdminPanel() {
                         <div className="flex-1 bg-black/5 relative p-2 flex items-center justify-center min-h-0">
                           {img.isVideo ? (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded text-red-500 overflow-hidden relative">
-                              <img src={getImageUrl(img.url)} className="w-full h-full object-cover opacity-50" />
+                              <ProgressiveImage src={getImageUrl(img.url)} containerClassName="absolute inset-0" className="w-full h-full opacity-50" />
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <FileVideo className="w-8 h-8 opacity-90" />
                               </div>
                             </div>
                           ) : (
-                            <img src={getImageUrl(img.url)} className="max-w-full max-h-full object-contain rounded" alt="media" />
+                            <ProgressiveImage src={getImageUrl(img.url)} alt="media" objectFit="contain" className="max-w-full max-h-full rounded" containerClassName="w-full h-full flex items-center justify-center" />
                           )}
                           
                           {/* Desktop Image Controls overlay */}
