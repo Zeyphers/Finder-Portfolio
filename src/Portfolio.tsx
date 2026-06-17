@@ -70,6 +70,25 @@ const getYoutubeEmbedUrl = (url: string): string => {
 export default function Portfolio() {
   const { projects: PROJECTS, links: EXTERNAL_LINKS } = useAppletData();
   
+  // Preload image dimensions so masonry doesn't jump
+  const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
+  
+  useEffect(() => {
+    PROJECTS.forEach(p => {
+      p.gallery.forEach(img => {
+        if (!imageAspectRatios[img.url]) {
+          const i = new Image();
+          i.src = getImageUrl(img.url);
+          i.onload = () => {
+            if (i.width && i.height) {
+              setImageAspectRatios(prev => ({ ...prev, [img.url]: i.width / i.height }));
+            }
+          };
+        }
+      });
+    });
+  }, [PROJECTS, imageAspectRatios]);
+
   // Navigation active state can be "overview" or the ID of a project ("project-1", "project-2", etc.)
   const [activeSelection, setActiveSelection] = useState<string>("overview");
   const dragControls = useDragControls();
@@ -620,7 +639,7 @@ export default function Portfolio() {
             
             {activeSelection === "overview" ? (
               // ==================== STATE 1: TOP-LEVEL OVERVIEW VIEW ====================
-              <div className="h-full flex flex-col justify-start min-h-0 animate-fade-in">
+              <div className="h-full flex flex-col justify-start min-h-0">
                 
                 <div className="pt-2" />
 
@@ -632,7 +651,7 @@ export default function Portfolio() {
                       <div className={`text-[11px] font-semibold uppercase tracking-wider ${styles.textMuted} pl-1`}>
                         Project Folders
                       </div>
-                      <div className="flex flex-wrap gap-[10px] justify-start items-start animate-fade-in">
+                      <div className="flex flex-wrap gap-[10px] justify-start items-start">
                         {filteredOverviewFolders.map((project) => (
                           <div 
                             key={project.id}
@@ -678,7 +697,7 @@ export default function Portfolio() {
                       <div className={`text-[11px] font-semibold uppercase tracking-wider ${styles.textMuted} pl-1`}>
                         Shortcuts & Documents
                       </div>
-                      <div className="flex flex-wrap gap-[10px] justify-start items-start animate-fade-in">
+                      <div className="flex flex-wrap gap-[10px] justify-start items-start">
                         {/* File: About Me.rtf */}
                         {(searchQuery === "" || "about me.rtf".includes(searchQuery.toLowerCase())) && (
                           <div 
@@ -748,7 +767,7 @@ export default function Portfolio() {
             ) : (
               // ==================== STATE 2: PROJECT CORRESPONDING GALLERY VIEW ====================
               selectedProject && (
-                <div key={selectedProject.id} className={`h-full flex flex-col justify-start min-h-0 animate-fade-in ${styles.textSecondary}`}>
+                <div key={selectedProject.id} className={`h-full flex flex-col justify-start min-h-0 ${styles.textSecondary}`}>
                   
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
                   <div className="flex-1 overflow-y-auto min-h-0 w-full scrollbar-thin p-2.5">
@@ -772,19 +791,22 @@ export default function Portfolio() {
                             className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg break-inside-avoid inline-block w-full`}
                           >
                             {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
-                            <div className="w-full flex items-center justify-center p-1 relative">
+                            <div 
+                              className="w-full relative p-1"
+                              style={imageAspectRatios[img.url] ? { aspectRatio: `${imageAspectRatios[img.url]}` } : undefined}
+                            >
                               <ProgressiveImage 
                                 src={getImageUrl(img.url)} 
                                 alt={img.caption}
                                 objectFit="contain"
-                                className="w-full h-auto"
-                                containerClassName="w-full"
+                                className="w-full h-auto rounded-[inherit]"
+                                containerClassName={imageAspectRatios[img.url] ? "absolute inset-1" : "w-full"}
                                 referrerPolicy="no-referrer"
                               />
                               
                               {/* Light grey semi-transparent play triangle over video thumbnails */}
                               {img.isVideo && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/5 rounded">
+                                <div className="absolute inset-1 flex items-center justify-center bg-black/5 rounded">
                                   <div className="w-12 h-12 rounded-full bg-neutral-200/50 backdrop-blur-xs flex items-center justify-center text-zinc-800 shadow-md border border-white/10">
                                     <Play className="w-5 h-5 fill-zinc-800 text-zinc-800 ml-0.5" />
                                   </div>

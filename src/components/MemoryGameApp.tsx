@@ -117,8 +117,8 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
       ? "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#282828] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200 pointer-events-auto" 
       : "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#F5F5F4] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.25)] border border-black/15 flex flex-col font-sans text-[#1f2937] pointer-events-auto",
     titleBarBg: isDark 
-      ? "cursor-grab active:cursor-grabbing bg-[#333333] h-12 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative pointer-events-auto" 
-      : "cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto",
+      ? "drag-handle cursor-grab active:cursor-grabbing bg-[#333333] h-12 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative pointer-events-auto" 
+      : "drag-handle cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto",
     titleText: isDark ? "text-slate-300 drop-shadow-sm" : "text-slate-800 drop-shadow-sm",
   };
 
@@ -138,11 +138,16 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
             <button 
               onClick={onClose}
               className="group w-[14px] h-[14px] rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer transition-colors active:bg-[#C23C37]"
+              title="Close"
             >
-              <X className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-[#4C0002]" />
+              <X className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#4C0002]" strokeWidth={3.5} />
             </button>
-            <div className="w-[14px] h-[14px] rounded-full bg-[#FFBD2E] border border-[#DEA123]"></div>
-            <div className="w-[14px] h-[14px] rounded-full bg-[#27C93F] border border-[#1AAB29]"></div>
+            <div className="group w-[14px] h-[14px] rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-not-allowed">
+              <Minus className="w-2.5 h-2.5 text-[#5C3E00] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
+            </div>
+            <div className="group w-[14px] h-[14px] rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-not-allowed">
+              <span className="text-[8px] text-[#024B0E] font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">+</span>
+            </div>
           </div>
           
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -202,6 +207,7 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
                           src={card.imageUrl} 
                           alt="Card face" 
                           objectFit="cover"
+                          className="w-full h-full"
                           containerClassName="w-full h-full" 
                         />
                         
