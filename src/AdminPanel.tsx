@@ -235,7 +235,7 @@ export function AdminPanel() {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800">
+      <div className="h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800 overflow-y-auto">
         <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-200 max-w-sm w-full">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Login</h1>
@@ -267,7 +267,7 @@ export function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+    <div className="h-screen bg-slate-50 font-sans text-slate-800 flex flex-col overflow-y-auto">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center space-x-4">
           <div className="bg-blue-600 text-white p-2 rounded-md">

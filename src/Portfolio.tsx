@@ -673,10 +673,12 @@ export default function Portfolio() {
                           >
                             {project.folderIconImage ? (
                               <div className="w-[140px] h-[140px] mb-1 flex items-center justify-center p-1">
-                                <img 
+                                <ProgressiveImage
                                   src={project.folderIconImage} 
                                   alt={project.name} 
+                                  objectFit="contain"
                                   className="max-w-full max-h-full drop-shadow-[0_4px_8px_rgba(0,0,0,0.15)] object-contain" 
+                                  containerClassName="w-full h-full flex items-center justify-center"
                                 />
                               </div>
                             ) : (

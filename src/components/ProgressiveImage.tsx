@@ -35,19 +35,19 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
   const fitClass = objectFit === "contain" ? "object-contain" : "object-cover";
 
   return (
-    <div className={`relative overflow-hidden ${containerClassName || className || ""}`}>
+    <div className={`relative ${containerClassName || className || ""}`}>
       {/* Loading Placeholder */}
-      {!loaded && (
-        <div className={`absolute inset-0 bg-slate-200 dark:bg-slate-700/50 animate-pulse rounded-[inherit]`} />
-      )}
+      <div 
+        className={`absolute inset-0 bg-slate-200/50 dark:bg-slate-700/50 animate-pulse rounded-[inherit] transition-opacity duration-300 ${loaded ? "opacity-0 pointer-events-none" : "opacity-100"}`} 
+      />
       
       {/* High Quality Image */}
       <img
-        src={src}
-        alt={alt}
-        className={`${className || ""} transition-opacity duration-300 ${fitClass} ${loaded ? "opacity-100" : "opacity-0"}`}
-        onLoad={handleLoad}
-        {...props}
+         src={src}
+         alt={alt}
+         className={`${className || ""} relative z-10 transition-opacity duration-300 ${fitClass} ${loaded ? "opacity-100" : "opacity-0"}`}
+         onLoad={handleLoad}
+         {...props}
       />
     </div>
   );
