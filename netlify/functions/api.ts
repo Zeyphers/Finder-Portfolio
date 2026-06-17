@@ -123,7 +123,7 @@ router.post("/upload", requireAuth, async (req, res) => {
       metadata: { contentType: mimeType }
     });
     
-    const url = `/.netlify/functions/api/images/${newFilename}`;
+    const url = `/.netlify/functions/image/${newFilename}`;
     console.log(`Successfully uploaded: ${url}`);
     
     res.json({ success: true, url: url });
@@ -134,26 +134,8 @@ router.post("/upload", requireAuth, async (req, res) => {
 });
 
 router.get("/images/:filename", async (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const imageStore = getStore("images");
-    
-    const ibuffer = await imageStore.get(filename, { type: "arrayBuffer" });
-    if (!ibuffer) {
-      return res.status(404).send("Image not found");
-    }
-    
-    const buffer = Buffer.from(ibuffer);
-
-    const ext = (filename.split('.').pop() || '').toLowerCase();
-    const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
-    
-    res.setHeader("Content-Type", contentType);
-    res.send(buffer);
-  } catch (e: any) {
-    console.error("Image fetch error:", e);
-    res.status(500).send("Error fetching image");
-  }
+  const filename = req.params.filename;
+  res.redirect(301, `/.netlify/functions/image/${filename}`);
 });
 
 router.get("/image-proxy", async (req, res) => {
@@ -162,7 +144,7 @@ router.get("/image-proxy", async (req, res) => {
     return res.status(400).send("Missing url parameter");
   }
   
-  if (targetUrl.startsWith("/.netlify/functions/api/images/")) {
+  if (targetUrl.startsWith("/.netlify/functions/image/") || targetUrl.startsWith("/.netlify/functions/api/images/")) {
      res.redirect(targetUrl);
      return;
   }

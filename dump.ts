@@ -1,10 +1,17 @@
-import fs from "fs";
-import { EXTERNAL_LINKS, PROJECTS } from "./src/data";
+const fs = require('fs');
+const { GifFrame, GifUtil, GifCodec } = require('gifwrap');
+const Jimp = require('jimp');
 
-const data = {
-  EXTERNAL_LINKS,
-  PROJECTS
-};
-
-fs.writeFileSync("src/data.json", JSON.stringify(data, null, 2));
-console.log("data.json created!");
+async function test() {
+  const gif = await GifUtil.read("test.gif").catch(() => null);
+  if (!gif) { console.log("no test.gif, testing jimp instead"); return; }
+  
+  // resize all frames
+  for (let frame of gif.frames) {
+    const j = GifUtil.copyAsJimp(Jimp, frame);
+    j.resize(256, 256);
+    frame.bitmap = j.bitmap;
+  }
+  await GifUtil.write("out.gif", gif.frames, gif).then(() => console.log("written"));
+}
+test();
