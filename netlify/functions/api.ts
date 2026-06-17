@@ -3,6 +3,8 @@ import express from "express";
 import cors from "cors";
 import { getStore } from "@netlify/blobs";
 import multer from "multer";
+import defaultData from "../../src/data.json";
+import { Resend } from "resend";
 
 const app = express();
 
@@ -30,8 +32,7 @@ router.post("/contact", async (req, res) => {
     if (ObjectData && ObjectData.ABOUT?.disableContactCooldown === true) {
       isCooldownDisabled = true;
     } else {
-      const defaultDataReq = await import("../../src/data.json");
-      if ((defaultDataReq.default as any)?.ABOUT?.disableContactCooldown === true) {
+      if ((defaultData as any)?.ABOUT?.disableContactCooldown === true) {
         isCooldownDisabled = true;
       }
     }
@@ -59,7 +60,6 @@ router.post("/contact", async (req, res) => {
     }
     console.log(`[Email API] Key found length: ${RESEND_API_KEY.length}, starting resend...`);
 
-    const { Resend } = await import("resend");
     const resend = new Resend(RESEND_API_KEY);
 
     const htmlContent = `
@@ -116,8 +116,6 @@ const requireAuth = (req: any, res: any, next: any) => {
     res.status(401).json({ error: "Unauthorized" });
   }
 };
-
-import defaultData from "../../src/data.json";
 
 router.get("/data", async (req, res) => {
   try {
