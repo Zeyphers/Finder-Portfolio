@@ -25,6 +25,7 @@ export interface Project {
   behanceUrl?: string;
   tags: string[];
   imageUrl: string;
+  folderIconImage?: string;
   features: string[];
   gallery: GalleryImage[];
   wordpressCode: {

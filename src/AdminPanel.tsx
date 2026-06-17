@@ -338,14 +338,26 @@ export function AdminPanel() {
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description</label>
-                    <textarea 
-                      value={project.description} 
-                      onChange={e => updateFolder(project.id, { description: e.target.value })} 
-                      rows={2}
-                      className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none resize-none text-sm"
-                    />
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description</label>
+                      <textarea 
+                        value={project.description} 
+                        onChange={e => updateFolder(project.id, { description: e.target.value })} 
+                        rows={2}
+                        className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none resize-none text-sm"
+                      />
+                    </div>
+                    <div className="w-full sm:w-1/3">
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Custom Folder Icon URL</label>
+                      <input 
+                        type="text" 
+                        placeholder="Leave blank for generic icon"
+                        value={project.folderIconImage || ""} 
+                        onChange={e => updateFolder(project.id, { folderIconImage: e.target.value })} 
+                        className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="flex sm:flex-col gap-2 shrink-0">

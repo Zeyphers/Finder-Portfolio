@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { FolderIcon } from "./components/FolderIcon";
 import { TextEditModal } from "./components/TextEditModal";
+import { MemoryGameApp } from "./components/MemoryGameApp";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
@@ -158,6 +159,7 @@ export default function Portfolio() {
 
   // Modals controller states
   const [isAboutMeOpen, setIsAboutMeOpen] = useState<boolean>(false);
+  const [isMemoryGameOpen, setIsMemoryGameOpen] = useState<boolean>(false);
   
   // Lightbox controller state
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -339,6 +341,11 @@ export default function Portfolio() {
       {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
       {isAboutMeOpen && (
         <TextEditModal onClose={() => setIsAboutMeOpen(false)} isDark={isDark} />
+      )}
+
+      {/* 6. Memory Game App */}
+      {isMemoryGameOpen && (
+        <MemoryGameApp onClose={() => setIsMemoryGameOpen(false)} projects={PROJECTS} isDark={isDark} />
       )}
 
       {/* 7. macOS Preview Lightbox Overlay */}
@@ -629,9 +636,15 @@ export default function Portfolio() {
                             onClick={() => navigateTo(project.id)}
                             className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
                           >
-                            <FolderIcon 
-                              className="w-[140px] h-[140px] mb-1"
-                            />
+                            {project.folderIconImage ? (
+                              <div className="w-[140px] h-[140px] mb-1 flex items-center justify-center p-1">
+                                <img src={project.folderIconImage} alt={project.name} className="max-w-full max-h-full object-contain drop-shadow-md" />
+                              </div>
+                            ) : (
+                              <FolderIcon 
+                                className="w-[140px] h-[140px] mb-1"
+                              />
+                            )}
                             <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} leading-tight w-full break-words mt-2 px-1`}>
                               {project.name.split(" — ")[0]}
                             </span>
@@ -676,6 +689,27 @@ export default function Portfolio() {
                               About Me.rtf
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>1.2 KB</span>
+                          </div>
+                        )}
+
+                        {/* App: Memory */}
+                        {(searchQuery === "" || "memory".includes(searchQuery.toLowerCase())) && (
+                          <div 
+                            onClick={() => setIsMemoryGameOpen(true)}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                          >
+                            <div className={`w-[120px] h-[120px] bg-blue-300 dark:bg-blue-400 rounded-2xl shadow-sm flex items-center justify-center relative mb-2 border border-black/10`}>
+                              <div className="grid grid-cols-2 gap-2 p-1">
+                                <div className="w-9 h-9 rounded bg-white shadow-sm border border-white/20"></div>
+                                <div className="w-9 h-9 rounded bg-white shadow-sm border border-white/20"></div>
+                                <div className="w-9 h-9 rounded bg-white shadow-sm border border-white/20"></div>
+                                <div className="w-9 h-9 rounded border-2 border-white border-dashed opacity-80"></div>
+                              </div>
+                            </div>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full px-1`}>
+                              Memory
+                            </span>
+                            <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Application</span>
                           </div>
                         )}
 
