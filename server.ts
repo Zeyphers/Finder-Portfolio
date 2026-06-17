@@ -141,19 +141,39 @@ async function startServer() {
     }
   });
 
-  app.post("/api/upload", requireAuth, async (req, res) => {
-    // Determine whether request is formData (req.file) or base64 JSON (req.body.fileBase64)
-    let buffer: Buffer;
-    let originalName: string;
+  const uploadChunks = new Map<string, string[]>();
 
-    if (req.body && req.body.fileBase64) {
-      buffer = Buffer.from(req.body.fileBase64, "base64");
-      originalName = req.body.fileName;
-    } else {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-    
+  app.post("/api/upload", requireAuth, async (req, res) => {
     try {
+      if (req.body && req.body.chunkIndex !== undefined) {
+        const { chunkIndex, totalChunks, fileId, fileBase64, fileName } = req.body;
+        
+        if (!uploadChunks.has(fileId)) {
+          uploadChunks.set(fileId, new Array(totalChunks));
+        }
+        
+        const fileChunks = uploadChunks.get(fileId)!;
+        fileChunks[chunkIndex] = fileBase64;
+
+        if (chunkIndex === totalChunks - 1) {
+          const fullBase64 = fileChunks.join("");
+          uploadChunks.delete(fileId);
+          req.body.fileBase64 = fullBase64;
+          req.body.fileName = fileName;
+        } else {
+          return res.json({ success: true, chunkReceived: true });
+        }
+      }
+
+      // Determine whether request is base64 JSON (req.body.fileBase64)
+      let originalName: string;
+
+      if (req.body && req.body.fileBase64) {
+        originalName = req.body.fileName;
+      } else {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
       const ext = path.extname(originalName);
       const name = path.basename(originalName, ext).replace(/[^a-zA-Z0-9]/g, "-");
       const newFilename = `${name}-${Date.now()}${ext}`;

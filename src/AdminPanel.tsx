@@ -154,43 +154,55 @@ export function AdminPanel() {
     });
   };
 
+  const uploadFileWithChunks = async (file: File): Promise<string> => {
+    const base64Content = await fileToBase64(file);
+    // 3MB chunk sizes for the base64 string
+    const CHUNK_SIZE = 3 * 1024 * 1024;
+    const totalChunks = Math.ceil(base64Content.length / CHUNK_SIZE);
+    const fileId = `${file.name}_${Date.now()}`;
+    
+    let lastData = null;
+    for (let i = 0; i < totalChunks; i++) {
+       const start = i * CHUNK_SIZE;
+       const chunkStr = base64Content.slice(start, start + CHUNK_SIZE);
+       
+       const res = await fetch(getApiUrl("/api/upload"), {
+         method: "POST",
+         headers: { 
+           "Authorization": `Bearer ${token}`,
+           "Content-Type": "application/json"
+         },
+         body: JSON.stringify({
+           fileId,
+           chunkIndex: i,
+           totalChunks,
+           fileName: file.name,
+           mimeType: file.type,
+           fileBase64: chunkStr
+         })
+       });
+
+       try {
+         lastData = await res.json();
+       } catch (err) {
+         throw new Error(`Server returned a non-JSON response (Status ${res.status}). Upload failed.`);
+       }
+
+       if (!lastData?.success) {
+         throw new Error(lastData?.error || "Upload failed during chunk transfer.");
+       }
+    }
+    
+    return lastData!.url;
+  };
+
   const handleFolderIconUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 4.5 * 1024 * 1024) {
-      alert("File is too large! Netlify Functions have a strict ~6MB JSON payload limit. Please use files under 4.5MB.");
-      e.target.value = "";
-      return;
-    }
-
     try {
-      const base64Content = await fileToBase64(file);
-      const res = await fetch(getApiUrl("/api/upload"), {
-        method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          mimeType: file.type,
-          fileBase64: base64Content
-        })
-      });
-      
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseError) {
-        throw new Error(`Server returned a non-JSON response (Status ${res.status}). The file might be too large.`);
-      }
-
-      if (data.success) {
-        updateFolder(projectId, { folderIconImage: data.url });
-      } else {
-        alert("Upload failed: " + (data.error || "Unknown error"));
-      }
+      const url = await uploadFileWithChunks(file);
+      updateFolder(projectId, { folderIconImage: url });
     } catch (err: any) {
       console.error("Upload error", err);
       alert("Upload error: " + (err.message || String(err)));
@@ -207,36 +219,11 @@ export function AdminPanel() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
-        if (file.size > 4.5 * 1024 * 1024) {
-          alert(`File ${file.name} is too large! Netlify Functions have a strict payload limit. Please use files under 4.5MB.`);
-          continue;
-        }
-
-        const base64Content = await fileToBase64(file);
-        const res = await fetch(getApiUrl("/api/upload"), {
-          method: "POST",
-          headers: { 
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            mimeType: file.type,
-            fileBase64: base64Content
-          })
-        });
-        
-        let data;
         try {
-          data = await res.json();
-        } catch (parseError) {
-          throw new Error(`Server returned a non-JSON response (Status ${res.status}) on file ${file.name}. The file might be too large.`);
-        }
-
-        if (data.success) {
-          newGalleryItems.push({ url: data.url, caption: "New Image" });
-        } else {
-          alert("Upload failed for " + file.name + ": " + (data.error || "Unknown error"));
+          const url = await uploadFileWithChunks(file);
+          newGalleryItems.push({ url, caption: "New Image" });
+        } catch (err: any) {
+          alert(`Upload failed for ${file.name}: ${err.message || String(err)}`);
         }
       }
       

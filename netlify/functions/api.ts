@@ -72,19 +72,44 @@ router.post("/data", requireAuth, async (req, res) => {
 });
 
 router.post("/upload", requireAuth, async (req, res) => {
-  let base64String: string;
-  let originalName: string;
-  let mimeType: string;
-
-  if (req.body && req.body.fileBase64) {
-    base64String = req.body.fileBase64;
-    originalName = req.body.fileName;
-    mimeType = req.body.mimeType;
-  } else {
-    return res.status(400).json({ error: "No file uploaded" });
-  }
-  
   try {
+    if (req.body && req.body.chunkIndex !== undefined) {
+      const { chunkIndex, totalChunks, fileId, fileBase64, fileName, mimeType } = req.body;
+      const chunkStore = getStore("chunks");
+      await chunkStore.set(`${fileId}_${chunkIndex}`, fileBase64);
+
+      if (chunkIndex === totalChunks - 1) {
+        let fullBase64 = "";
+        for (let i = 0; i < totalChunks; i++) {
+          const c = await chunkStore.get(`${fileId}_${i}`);
+          if (c) fullBase64 += c;
+        }
+
+        req.body.fileBase64 = fullBase64;
+        req.body.fileName = fileName;
+        req.body.mimeType = mimeType;
+
+        // cleanup chunks asynchronously
+        for (let i = 0; i < totalChunks; i++) {
+          chunkStore.delete(`${fileId}_${i}`).catch(() => {});
+        }
+      } else {
+        return res.json({ success: true, chunkReceived: true });
+      }
+    }
+
+    let base64String: string;
+    let originalName: string;
+    let mimeType: string;
+
+    if (req.body && req.body.fileBase64) {
+      base64String = req.body.fileBase64;
+      originalName = req.body.fileName;
+      mimeType = req.body.mimeType;
+    } else {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    
     const ext = originalName.slice((originalName.lastIndexOf(".") - 1 >>> 0) + 2);
     const name = originalName.replace(`.${ext}`, "").replace(/[^a-zA-Z0-9]/g, "-");
     const newFilename = `${name}-${Date.now()}.${ext}`;
