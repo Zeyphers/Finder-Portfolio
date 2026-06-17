@@ -356,7 +356,7 @@ export default function Portfolio() {
   };
 
   return (
-    <div className={`theme-transition min-h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-x-hidden antialiased select-none`}>
+    <div className={`theme-transition h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-hidden antialiased select-none`}>
       
       {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
       {isAboutMeOpen && (
@@ -660,12 +660,10 @@ export default function Portfolio() {
                           >
                             {project.folderIconImage ? (
                               <div className="w-[140px] h-[140px] mb-1 flex items-center justify-center p-1">
-                                <ProgressiveImage 
+                                <img 
                                   src={project.folderIconImage} 
                                   alt={project.name} 
-                                  objectFit="contain"
-                                  className="max-w-full max-h-full drop-shadow-md" 
-                                  containerClassName="w-full h-full flex items-center justify-center"
+                                  className="max-w-full max-h-full drop-shadow-[0_4px_8px_rgba(0,0,0,0.15)] object-contain" 
                                 />
                               </div>
                             ) : (
@@ -813,7 +811,7 @@ export default function Portfolio() {
                                 </div>
                               )}
                             </div>
-                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} mt-2.5 truncate w-full px-1`}>
+                            <span className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-2.5 break-words leading-tight w-full px-1`}>
                               {filename}
                             </span>
                           </div>

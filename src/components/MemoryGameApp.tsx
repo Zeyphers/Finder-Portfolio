@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Project, GalleryImage } from "../types";
 import { motion, useDragControls } from "motion/react";
-import { X, RefreshCcw } from "lucide-react";
+import { X, RefreshCcw, Minus } from "lucide-react";
 
 import { ProgressiveImage } from "./ProgressiveImage";
+import { getImageUrl } from "../api";
 
 interface MemoryGameProps {
   onClose: () => void;
@@ -204,7 +205,7 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
                       {/* Front of card (visible when flipped) */}
                       <div className="absolute w-full h-full rounded-xl [backface-visibility:hidden] [transform:rotateY(180deg)] overflow-hidden shadow-lg border-2 border-blue-500/50 bg-black">
                         <ProgressiveImage 
-                          src={card.imageUrl} 
+                          src={getImageUrl(card.imageUrl)} 
                           alt="Card face" 
                           objectFit="cover"
                           className="w-full h-full"
