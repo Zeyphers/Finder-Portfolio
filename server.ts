@@ -120,12 +120,14 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "All fields are required." });
       }
 
+      console.log(`[Email API] Request received: ${name} <${contactInfo}> - ${subject}`);
       const RESEND_API_KEY = process.env.RESEND_API_KEY;
       if (!RESEND_API_KEY) {
-        console.warn("No RESEND_API_KEY found, simulating successful email send.");
+        console.warn("[Email API] No RESEND_API_KEY found, simulating successful email send.");
         emailRateLimits.set(ip, now);
         return res.json({ success: true, message: "Email simulated (no API key)" });
       }
+      console.log(`[Email API] Key found length: ${RESEND_API_KEY.length}, starting resend...`);
 
       const { Resend } = await import("resend");
       const resend = new Resend(RESEND_API_KEY);
@@ -142,14 +144,17 @@ async function startServer() {
         </div>
       `;
 
+      console.log(`[Email API] Sending payload...`);
       const { data, error } = await resend.emails.send({
         from: "onboarding@resend.dev",
         to: "jakeypay@gmail.com",
         subject: `Portfolio Contact: ${subject}`,
         html: htmlContent,
       });
+      console.log(`[Email API] Payload sent. Response data: `, data, ` error: `, error);
 
       if (error) {
+        console.error("[Email API] Resend Error:", error);
         return res.status(500).json({ success: false, error: error.message });
       }
 
