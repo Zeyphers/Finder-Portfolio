@@ -5,6 +5,7 @@ import {
   FileText
 } from "lucide-react";
 import { useAppletData } from "../DataContext";
+import { motion, useDragControls } from "motion/react";
 
 interface TextEditModalProps {
   onClose: () => void;
@@ -13,6 +14,7 @@ interface TextEditModalProps {
 
 export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark }) => {
   const { about } = useAppletData();
+  const dragControls = useDragControls();
   
   const styles = React.useMemo(() => ({
     backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none",
@@ -20,8 +22,8 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
       ? "relative w-full max-w-3xl h-[650px] bg-[#2a2a2c] rounded-xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200" 
       : "relative w-full max-w-3xl h-[650px] bg-[#f5f5f7] rounded-xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-black/15 flex flex-col font-sans text-[#1f2937]",
     titleBarBg: isDark 
-      ? "bg-[#3a3a3c] h-10 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative" 
-      : "bg-[#ececed] h-10 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative",
+      ? "drag-handle cursor-grab active:cursor-grabbing bg-[#3a3a3c] h-10 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative" 
+      : "drag-handle cursor-grab active:cursor-grabbing bg-[#ececed] h-10 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative",
     titleText: isDark ? "text-slate-300" : "text-slate-700",
     editorBg: isDark ? "bg-[#1c1c1e]" : "bg-[#dedede]",
     paperBg: isDark 
@@ -55,12 +57,19 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
   return (
     <div className={styles.backdropBg} onClick={onClose}>
       {/* TextEdit window simulation frame */}
-      <div className={styles.windowBg} onClick={(e) => e.stopPropagation()}>
+      <motion.div 
+        drag 
+        dragListener={false}
+        dragControls={dragControls}
+        dragMomentum={false}
+        className={styles.windowBg} 
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      >
         
         {/* Titlebar */}
-        <div className={styles.titleBarBg}>
+        <div onPointerDown={(e) => dragControls.start(e)} className={styles.titleBarBg}>
           {/* Traffic light buttons top left */}
-          <div className="flex space-x-2 z-10">
+          <div className="flex space-x-2 z-10" onPointerDown={(e) => e.stopPropagation()}>
             <button 
               onClick={onClose}
               className="group w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer transition-colors active:bg-[#C23C37]"
@@ -131,7 +140,7 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
           <span>Words: {wordCount} &bull; Characters: {charCount}</span>
           <span>Zoom: 100%</span>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

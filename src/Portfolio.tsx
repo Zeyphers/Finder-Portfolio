@@ -4,6 +4,7 @@ import { TextEditModal } from "./components/TextEditModal";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
+import { motion, useDragControls } from "motion/react";
 import { 
   Folder, 
   Search, 
@@ -69,6 +70,7 @@ export default function Portfolio() {
   
   // Navigation active state can be "overview" or the ID of a project ("project-1", "project-2", etc.)
   const [activeSelection, setActiveSelection] = useState<string>("overview");
+  const dragControls = useDragControls();
   
   // Light/Dark Theme Controllers
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -465,16 +467,24 @@ export default function Portfolio() {
           </div>
         </div>
       )}      {/* Main Finder Window container */}
-      <div 
+      <motion.div 
+        drag
+        dragListener={false}
+        dragControls={dragControls}
+        dragMomentum={false}
         id="finder-window"
-        className={`theme-transition w-full max-w-[1550px] h-full sm:h-[88vh] min-h-[720px] ${styles.windowBg} rounded-[28px] overflow-hidden flex flex-col relative`}
+        className={`theme-transition w-full max-w-[1550px] h-full sm:h-[88vh] min-h-[720px] ${styles.windowBg} rounded-[28px] overflow-hidden flex flex-col relative shadow-[0_30px_90px_-15px_rgba(0,0,0,0.4)]`}
       >
         {/* Header 1: macOS traffic lights and centered directory label */}
-        <div className={`theme-transition ${styles.titleBarBg} h-11 px-4 flex items-center justify-between shrink-0 relative`}>
+        <div 
+          onPointerDown={(e) => dragControls.start(e)}
+          className={`cursor-grab active:cursor-grabbing theme-transition ${styles.titleBarBg} h-11 px-4 flex items-center justify-between shrink-0 relative`}
+        >
           
           {/* Traffic red/yellow/green visual lights */}
           <div 
             onClick={activeSelection !== "overview" ? () => navigateTo("overview") : undefined}
+            onPointerDown={(e) => e.stopPropagation()}
             className={`flex items-center space-x-2 z-30 p-1.5 -m-1.5 rounded-md transition-all duration-150 ${
               activeSelection !== "overview" 
                 ? "cursor-pointer active:scale-95 md:active:scale-100 md:cursor-default" 
@@ -695,7 +705,7 @@ export default function Portfolio() {
             ) : (
               // ==================== STATE 2: PROJECT CORRESPONDING GALLERY VIEW ====================
               selectedProject && (
-                <div className={`h-full flex flex-col justify-start min-h-0 animate-fade-in ${styles.textSecondary}`}>
+                <div key={selectedProject.id} className={`h-full flex flex-col justify-start min-h-0 animate-fade-in ${styles.textSecondary}`}>
                   
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
                   <div className="flex-1 overflow-y-auto min-h-0 w-full scrollbar-thin p-2.5">
@@ -794,7 +804,7 @@ export default function Portfolio() {
           </div>
         </div>
 
-      </div>
+      </motion.div>
 
     </div>
   );
