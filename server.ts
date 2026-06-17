@@ -155,14 +155,14 @@ async function startServer() {
 
       if (error) {
         console.error("[Email API] Resend Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false, error: `Resend Error: ${error.name} - ${error.message}` });
       }
 
       emailRateLimits.set(ip, now);
-      res.json({ success: true });
+      res.json({ success: true, message: "Email sent" });
     } catch (err: any) {
       console.error("Error sending contact email:", err);
-      res.status(500).json({ success: false, error: "Internal server error" });
+      res.status(500).json({ success: false, error: err.message || "Internal server error" });
     }
   });
 

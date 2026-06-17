@@ -44,6 +44,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
     setErrorMessage("");
 
     try {
+      console.log("[ContactForm] Sending data to /api/contact:", formData);
       const res = await fetch(getApiUrl("/api/contact"), {
         method: "POST",
         headers: {
@@ -53,6 +54,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
       });
       
       const data = await res.json();
+      console.log("[ContactForm] Server response:", res.status, data);
       
       if (res.ok && data.success) {
         setStatus("success");
@@ -61,8 +63,9 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
         setErrorMessage(data.error || "An error occurred.");
       }
     } catch (err: any) {
+      console.error("[ContactForm] Fetch error:", err);
       setStatus("error");
-      setErrorMessage("Failed to send message. Please try again later.");
+      setErrorMessage(`Network error: ${err.message || String(err)}`);
     }
   };
 
