@@ -17,9 +17,20 @@ export const DataContext = createContext<DataContextType>({
   refreshData: async () => {}
 });
 
+const cleanLinkName = (name: string) => {
+  if (!name) return "";
+  return name
+    .replace(/\s+profile$/i, "")
+    .replace(/\s+channel$/i, "")
+    .trim();
+};
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>(defaultData.PROJECTS as any);
-  const [links, setLinks] = useState<ExternalLink[]>(defaultData.EXTERNAL_LINKS as any);
+  const [links, setLinks] = useState<ExternalLink[]>(() => {
+    const rawLinks = (defaultData.EXTERNAL_LINKS || []) as any[];
+    return rawLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
+  });
   const [about, setAbout] = useState<AboutInfo>(defaultData.ABOUT as any);
 
   const refreshData = async () => {
@@ -28,7 +39,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const d = await res.json();
         setProjects(d.PROJECTS || []);
-        setLinks(d.EXTERNAL_LINKS || []);
+        
+        const rawLinks = (d.EXTERNAL_LINKS || []) as any[];
+        const cleanedLinks = rawLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
+        setLinks(cleanedLinks);
+        
         // Handle backwards compatibility if server data doesn't have ABOUT yet
         setAbout(d.ABOUT || defaultData.ABOUT);
       }

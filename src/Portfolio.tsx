@@ -141,7 +141,7 @@ export default function Portfolio() {
     // Buttons & Icons
     sidebarSectionHeader: isDark ? "text-slate-500 font-bold" : "text-slate-400 font-extrabold",
     sidebarButtonSelected: isDark ? "bg-[#3063d4] text-white" : "bg-[#1062fe] text-white shadow-xs",
-    sidebarButtonHover: isDark ? "text-slate-300 hover:bg-white/5" : "text-slate-700 hover:bg-black/5",
+    sidebarButtonHover: isDark ? "text-slate-300" : "text-slate-700",
     toolbarButton: isDark ? "bg-[#323234] hover:bg-[#3d3d40] text-slate-300 border border-[#4a4a4d]" : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-3xs",
     toolbarToggleBg: isDark ? "bg-[#232325] border border-[#434346]" : "bg-slate-200/60 border border-slate-300",
     toolbarToggleBtnSelected: isDark ? "bg-[#3e3e41] text-sky-400" : "bg-white text-[#1062fe] shadow-3xs",
@@ -199,7 +199,7 @@ export default function Portfolio() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxIndex, activeSelection]);
+  }, [lightboxIndex, activeSelection, PROJECTS]);
 
   const closeLightbox = () => {
     setLightboxIndex(null);
@@ -305,25 +305,25 @@ export default function Portfolio() {
   const selectedProject = useMemo(() => {
     if (activeSelection === "overview") return null;
     return PROJECTS.find(p => p.id === activeSelection) || null;
-  }, [activeSelection]);
+  }, [activeSelection, PROJECTS]);
 
   // Folder level items rendering filtering
   const filteredOverviewFolders = useMemo(() => {
     if (searchQuery.trim() === "") return PROJECTS;
     const q = searchQuery.toLowerCase();
     return PROJECTS.filter(p => 
-      p.name.toLowerCase().includes(q) || 
-      p.client.toLowerCase().includes(q) || 
-      p.category.toLowerCase().includes(q) || 
-      p.tags.some(t => t.toLowerCase().includes(q))
+      (p.name || "").toLowerCase().includes(q) || 
+      (p.client || "").toLowerCase().includes(q) || 
+      (p.category || "").toLowerCase().includes(q) || 
+      (p.tags || []).some(t => (t || "").toLowerCase().includes(q))
     );
-  }, [searchQuery]);
+  }, [searchQuery, PROJECTS]);
 
   const filteredOverviewLinks = useMemo(() => {
     if (searchQuery.trim() === "") return EXTERNAL_LINKS;
     const q = searchQuery.toLowerCase();
     return EXTERNAL_LINKS.filter(l => l.name.toLowerCase().includes(q));
-  }, [searchQuery]);
+  }, [searchQuery, EXTERNAL_LINKS]);
 
   const getSectionTitle = (id: string) => {
     if (id === "overview") return "Overview";
@@ -350,7 +350,7 @@ export default function Portfolio() {
             <div className="flex items-center space-x-3">
               <button 
                 onClick={closeLightbox}
-                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 font-bold flex items-center justify-center transition cursor-pointer"
+                className="w-7 h-7 rounded-full bg-slate-800 font-bold flex items-center justify-center cursor-pointer"
                 title="Close Preview (ESC)"
               >
                 <X className="w-4 h-4" />
@@ -397,7 +397,7 @@ export default function Portfolio() {
                 setLightboxIndex(prev);
                 setLightboxZoom(1);
               }}
-              className="absolute left-4 z-40 p-3.5 bg-black/45 hover:bg-black/60 text-white rounded-full transition cursor-pointer focus:outline-none"
+              className="absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer focus:outline-none"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
@@ -450,7 +450,7 @@ export default function Portfolio() {
                 setLightboxIndex(next);
                 setLightboxZoom(1);
               }}
-              className="absolute right-4 z-40 p-3.5 bg-black/45 hover:bg-black/60 text-white rounded-full transition cursor-pointer focus:outline-none"
+              className="absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer focus:outline-none"
             >
               <ChevronRight className="w-6 h-6" />
             </button>
@@ -537,7 +537,7 @@ export default function Portfolio() {
             <div>
               <button
                 onClick={() => { if (activeSelection !== "overview") navigateTo("overview"); }}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium transition cursor-pointer select-none ${
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium cursor-pointer select-none ${
                   activeSelection === "overview"
                     ? styles.sidebarButtonSelected
                     : styles.sidebarButtonHover
@@ -558,7 +558,7 @@ export default function Portfolio() {
                     <li key={project.id}>
                       <button
                         onClick={() => navigateTo(project.id)}
-                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium transition cursor-pointer truncate ${
+                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium cursor-pointer truncate ${
                           isCurSelected 
                             ? styles.sidebarButtonSelected 
                             : styles.sidebarButtonHover
@@ -581,7 +581,7 @@ export default function Portfolio() {
                   <li key={link.id}>
                     <button
                       onClick={() => handleLinkOpen(link.url)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left font-medium transition cursor-pointer ${styles.sidebarButtonHover}`}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left font-medium cursor-pointer ${styles.sidebarButtonHover}`}
                     >
                       <div className="flex items-center space-x-3 truncate">
                         {getLinkIcon(link.iconName, "w-4.5 h-4.5")}
@@ -617,12 +617,12 @@ export default function Portfolio() {
                           <div 
                             key={project.id}
                             onClick={() => navigateTo(project.id)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent hover:bg-neutral-500/5 active:bg-neutral-500/10 cursor-pointer select-none transition w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
                           >
                             <FolderIcon 
-                              className="w-[140px] h-[140px] mb-1 transition duration-300"
+                              className="w-[140px] h-[140px] mb-1"
                             />
-                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} leading-tight w-full break-words mt-2 group-hover:text-blue-500 transition-colors px-1`}>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} leading-tight w-full break-words mt-2 px-1`}>
                               {project.name.split(" — ")[0]}
                             </span>
                           </div>
@@ -651,9 +651,9 @@ export default function Portfolio() {
                         {(searchQuery === "" || "about me.rtf".includes(searchQuery.toLowerCase())) && (
                           <div 
                             onClick={() => setIsAboutMeOpen(true)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent hover:bg-neutral-500/5 active:bg-neutral-500/10 cursor-pointer select-none transition w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
                           >
-                            <div className={`${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] flex flex-col justify-between p-3 relative mb-2 transition duration-300`}>
+                            <div className={`${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] flex flex-col justify-between p-3 relative mb-2`}>
                               <div className="h-2 bg-orange-500 rounded-sm w-full"></div>
                               <div className="flex flex-col space-y-1.5 py-2 pl-1">
                                 <div className={`h-1 ${isDark ? "bg-slate-700" : "bg-slate-300"} w-2/3 rounded-sm`}></div>
@@ -662,7 +662,7 @@ export default function Portfolio() {
                               </div>
                               <span className="text-[10px] text-orange-500 font-extrabold font-mono text-right pr-0.5">RTF</span>
                             </div>
-                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full group-hover:text-orange-500 transition-colors px-1`}>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full px-1`}>
                               About Me.rtf
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>1.2 KB</span>
@@ -674,12 +674,12 @@ export default function Portfolio() {
                           <div 
                             key={link.id}
                             onClick={() => handleLinkOpen(link.url)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent hover:bg-neutral-500/5 active:bg-neutral-500/10 cursor-pointer select-none transition w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
                           >
-                            <div className={`w-[120px] h-[120px] ${isDark ? "bg-zinc-800/40 border border-white/5" : "bg-slate-100/70 border border-black/5"} rounded-2xl shadow-sm flex items-center justify-center relative mb-2 transition duration-300`}>
+                            <div className={`w-[120px] h-[120px] ${isDark ? "bg-zinc-800/40 border border-white/5" : "bg-slate-100/70 border border-black/5"} rounded-2xl shadow-sm flex items-center justify-center relative mb-2`}>
                               {getLargeLinkIcon(link.iconName, "w-[32px] h-[32px]")}
                             </div>
-                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full group-hover:text-blue-500 transition-colors px-1`}>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full px-1`}>
                               {link.name.split(" ")[0]}.webloc
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Web URL</span>
@@ -716,7 +716,7 @@ export default function Portfolio() {
                           <div 
                             key={index}
                             onClick={() => { setLightboxIndex(index); }}
-                            className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none transition rounded-lg hover:bg-neutral-500/5 active:bg-neutral-500/10 break-inside-avoid inline-block w-full`}
+                            className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg break-inside-avoid inline-block w-full`}
                           >
                             {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
                             <div className="w-full flex items-center justify-center p-1 relative">
@@ -771,10 +771,10 @@ export default function Portfolio() {
             <div className={`flex items-center border-l ${isDark ? "border-white/10" : "border-black/10"} pl-4 shrink-0`}>
               <button 
                 onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
-                className={`flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full transition-all duration-300 font-semibold cursor-pointer active:scale-95 ${
+                className={`flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full font-semibold cursor-pointer active:scale-95 ${
                   isDark 
-                    ? "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5" 
-                    : "bg-black/5 hover:bg-black/10 text-slate-700 border border-black/10 shadow-3xs"
+                    ? "bg-white/5 text-slate-300 border border-white/5" 
+                    : "bg-black/5 text-slate-700 border border-black/10 shadow-3xs"
                 }`}
                 title={`Switch to ${isDark ? "Light" : "Dark"} Mode`}
               >
