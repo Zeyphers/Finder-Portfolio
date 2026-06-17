@@ -19,6 +19,66 @@ const upload = multer({ storage });
 
 const router = express.Router();
 
+router.post("/contact", async (req, res) => {
+  try {
+    const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").toString().split(",")[0].trim();
+    const now = Date.now();
+    
+    const rateLimitStore = getStore("ratelimits");
+    const lastSentStr = await rateLimitStore.get(ip, { type: "text" });
+    if (lastSentStr) {
+      const lastSent = parseInt(lastSentStr, 10);
+      if (now - lastSent < 10 * 60 * 1000) {
+        return res.status(429).json({ success: false, error: "Please wait 10 minutes before sending another message." });
+      }
+    }
+
+    const { subject, message, name, contactInfo } = req.body;
+    if (!subject || !message || !name || !contactInfo) {
+      return res.status(400).json({ success: false, error: "All fields are required." });
+    }
+
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) {
+      console.warn("No RESEND_API_KEY found, simulating successful email send.");
+      await rateLimitStore.set(ip, now.toString());
+      return res.json({ success: true, message: "Email simulated (no API key)" });
+    }
+
+    const { Resend } = await import("resend");
+    const resend = new Resend(RESEND_API_KEY);
+
+    const htmlContent = `
+      <div style="font-family: sans-serif;">
+        <h2>New message from Portfolio Contact Form</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Contact Info:</strong> ${contactInfo}</p>
+        <hr />
+        <p><strong>Subject:</strong> ${subject}</p>
+        <p><strong>Message:</strong></p>
+        <p style="white-space: pre-wrap;">${message}</p>
+      </div>
+    `;
+
+    const { data, error } = await resend.emails.send({
+      from: "Portfolio Contact <onboarding@resend.dev>",
+      to: ["jakeypay@gmail.com"],
+      subject: `Portfolio Contact: ${subject}`,
+      html: htmlContent,
+    });
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    await rateLimitStore.set(ip, now.toString());
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error sending contact email:", err);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 router.post("/login", (req, res) => {
   const { username, password } = req.body;
   const validUser = process.env.ADMIN_USERNAME || "jake";

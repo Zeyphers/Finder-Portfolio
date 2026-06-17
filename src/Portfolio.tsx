@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { FolderIcon } from "./components/FolderIcon";
 import { TextEditModal } from "./components/TextEditModal";
 import { MemoryGameApp } from "./components/MemoryGameApp";
+import { ContactApp } from "./components/ContactApp";
 import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
@@ -68,7 +69,20 @@ const getYoutubeEmbedUrl = (url: string): string => {
 // getImageUrl is imported from api.ts
 
 export default function Portfolio() {
-  const { projects: PROJECTS, links: EXTERNAL_LINKS } = useAppletData();
+  const { projects: PROJECTS, links: EXTERNAL_LINKS, about } = useAppletData();
+  
+  // Set tab icon (favicon) when about.tabIconUrl changes
+  useEffect(() => {
+    if (about?.tabIconUrl) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = about.tabIconUrl;
+    }
+  }, [about?.tabIconUrl]);
   
   // Preload image dimensions so masonry doesn't jump
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
@@ -193,6 +207,7 @@ export default function Portfolio() {
   // Modals controller states
   const [isAboutMeOpen, setIsAboutMeOpen] = useState<boolean>(false);
   const [isMemoryGameOpen, setIsMemoryGameOpen] = useState<boolean>(false);
+  const [isContactAppOpen, setIsContactAppOpen] = useState<boolean>(false);
   
   // Lightbox controller state
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -379,6 +394,11 @@ export default function Portfolio() {
       {/* 6. Memory Game App */}
       {isMemoryGameOpen && (
         <MemoryGameApp onClose={() => setIsMemoryGameOpen(false)} projects={PROJECTS} isDark={isDark} />
+      )}
+
+      {/* Contact Me App */}
+      {isContactAppOpen && (
+        <ContactApp onClose={() => setIsContactAppOpen(false)} isDark={isDark} />
       )}
 
       {/* 7. macOS Preview Lightbox Overlay */}
@@ -754,6 +774,26 @@ export default function Portfolio() {
                           </div>
                         )}
 
+                        {/* App: Contact Me */}
+                        {(searchQuery === "" || "contact".includes(searchQuery.toLowerCase()) || "mail".includes(searchQuery.toLowerCase())) && (
+                          <div 
+                            onClick={() => setIsContactAppOpen(true)}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                          >
+                            <div className={`w-[120px] h-[120px] bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl shadow-sm flex items-center justify-center relative mb-2 border border-black/10`}>
+                              <div className="w-[60px] h-[40px] bg-white rounded-md shadow-sm border border-white/20 relative overflow-hidden">
+                                {/* Envelope flap shape */}
+                                <div className="absolute top-0 left-0 w-full h-[50%] border-t-[20px] border-l-[30px] border-r-[30px] border-t-slate-200 border-l-transparent border-r-transparent"></div>
+                                <div className="absolute top-0 left-0 w-full h-[50%] border-t-[18px] border-l-[28px] border-r-[28px] border-t-white border-l-transparent border-r-transparent pt-px"></div>
+                              </div>
+                            </div>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full px-1`}>
+                              Contact Me
+                            </span>
+                            <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Application</span>
+                          </div>
+                        )}
+
                         {/* Dynamic web links */}
                         {filteredOverviewLinks.map((link) => (
                           <div 
@@ -854,8 +894,8 @@ export default function Portfolio() {
             <HardDrive className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
             <span className="font-medium tracking-wide truncate whitespace-nowrap">
               {activeSelection === "overview" 
-                ? "Volume: Jacob's Portfolio SD" 
-                : `Volume: Jacob's Portfolio SD ➔ ${getSectionTitle(activeSelection)}`}
+                ? "Volume: Jacob's Portfolio SSD" 
+                : `Volume: Jacob's Portfolio SSD ➔ ${getSectionTitle(activeSelection)}`}
             </span>
           </div>
 

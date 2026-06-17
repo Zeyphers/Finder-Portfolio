@@ -77,12 +77,20 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
             >
               <X className="w-2.5 h-2.5 text-[#4C0002] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
             </button>
-            <div className="group w-[14px] h-[14px] rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-not-allowed">
+            <button 
+              onClick={onClose}
+              className="group w-[14px] h-[14px] rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-pointer transition-colors active:bg-[#A97510]"
+              title="Close (Minimize replacement)"
+            >
               <Minus className="w-2.5 h-2.5 text-[#5C3E00] opacity-0 group-hover:opacity-100 transition-opacity" strokeWidth={3.5} />
-            </div>
-            <div className="group w-[14px] h-[14px] rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-not-allowed">
+            </button>
+            <button 
+              onClick={onClose}
+              className="group w-[14px] h-[14px] rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-pointer transition-colors active:bg-[#168119]"
+              title="Close (Maximize replacement)"
+            >
               <span className="text-[8px] text-[#024B0E] font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">+</span>
-            </div>
+            </button>
           </div>
 
           {/* Centered Title */}
@@ -127,7 +135,7 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
 
             {/* Sign-off */}
             <div className={`mt-12 pt-6 border-t ${styles.paperHeaderBorder} flex justify-between items-center text-xs ${styles.footerText}`}>
-              <span>Contact: {about?.contact || "hello@designerstudio.com"}</span>
+              <span>{about?.contact ? `Contact: ${about.contact}` : ""}</span>
               <span className={`italic font-serif font-semibold ${styles.footerName}`}>{about?.signoff || "Jake Pay"}</span>
             </div>
 

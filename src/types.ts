@@ -45,6 +45,7 @@ export interface AboutInfo {
   bio: string;
   contact: string;
   signoff: string;
+  tabIconUrl?: string;
 }
 
 export interface SidebarItem {
