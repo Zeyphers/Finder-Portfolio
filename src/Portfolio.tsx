@@ -69,7 +69,7 @@ const getYoutubeEmbedUrl = (url: string): string => {
 // getImageUrl is imported from api.ts
 
 export default function Portfolio() {
-  const { projects: PROJECTS, links: EXTERNAL_LINKS, about } = useAppletData();
+  const { projects: PROJECTS, links: EXTERNAL_LINKS, about, sidebar: SIDEBAR } = useAppletData();
   
   // Set tab icon (favicon) when about.tabIconUrl changes
   useEffect(() => {
@@ -620,49 +620,97 @@ export default function Portfolio() {
               </button>
             </div>
 
-            {/* 2. Projects Sidebar list matching files */}
-            <div className="space-y-1.5">
-              <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>Projects</h4>
-              <ul className="space-y-1 text-[15.5px]">
-                {PROJECTS.map((project) => {
-                  const isCurSelected = activeSelection === project.id;
-                  return (
-                    <li key={project.id}>
-                      <button
-                        onClick={() => navigateTo(project.id)}
-                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium cursor-pointer truncate ${
-                          isCurSelected 
-                            ? styles.sidebarButtonSelected 
-                            : styles.sidebarButtonHover
-                        }`}
-                      >
-                        <Folder className={`w-4.5 h-4.5 shrink-0 ${isCurSelected ? "text-white" : "text-slate-400"}`} />
-                        <span className="truncate">{project.name.split(" — ")[0]}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+            {/* Dynamic Sidebar layout list matching files/links */}
+            <div className="flex flex-col space-y-1">
+              {(!SIDEBAR || SIDEBAR.length === 0) ? (
+                <>
+                  <div className="space-y-1.5 mt-2">
+                    <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>Projects</h4>
+                    <ul className="space-y-1 text-[15.5px]">
+                      {PROJECTS.map((project) => {
+                        const isCurSelected = activeSelection === project.id;
+                        return (
+                          <li key={project.id}>
+                            <button
+                              onClick={() => navigateTo(project.id)}
+                              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium cursor-pointer truncate ${
+                                isCurSelected 
+                                  ? styles.sidebarButtonSelected 
+                                  : styles.sidebarButtonHover
+                              }`}
+                            >
+                              <Folder className={`w-4.5 h-4.5 shrink-0 ${isCurSelected ? "text-white" : "text-slate-400"}`} />
+                              <span className="truncate">{project.name.split(" — ")[0]}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
 
-            {/* 3. Links Sidebar list redirect triggers */}
-            <div className="space-y-1.5">
-              <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>Links</h4>
-              <ul className="space-y-1 text-[15.5px]">
-                {EXTERNAL_LINKS.map((link) => (
-                  <li key={link.id}>
-                    <button
-                      onClick={() => handleLinkOpen(link.url)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left font-medium cursor-pointer ${styles.sidebarButtonHover}`}
-                    >
-                      <div className="flex items-center space-x-3 truncate">
-                        {getLinkIcon(link.iconName, "w-4.5 h-4.5")}
-                        <span className="truncate">{link.name}</span>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                  <div className="space-y-1.5 mt-4">
+                    <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>Links</h4>
+                    <ul className="space-y-1 text-[15.5px]">
+                      {EXTERNAL_LINKS.map((link) => (
+                        <li key={link.id}>
+                          <button
+                            onClick={() => handleLinkOpen(link.url)}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left font-medium cursor-pointer ${styles.sidebarButtonHover}`}
+                          >
+                            <div className="flex items-center space-x-3 truncate">
+                              {getLinkIcon(link.iconName, "w-4.5 h-4.5")}
+                              <span className="truncate">{link.name}</span>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <ul className="space-y-1 text-[15.5px]">
+                  {SIDEBAR.map((item) => {
+                    if (item.type === "title") {
+                      return (
+                        <li key={item.id} className="pt-4 pb-1">
+                          <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>{item.name}</h4>
+                        </li>
+                      );
+                    } else if (item.type === "project") {
+                      const isCurSelected = activeSelection === item.targetId;
+                      return (
+                        <li key={item.id}>
+                          <button
+                            onClick={() => { if (item.targetId) navigateTo(item.targetId); }}
+                            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium cursor-pointer truncate ${
+                              isCurSelected ? styles.sidebarButtonSelected : styles.sidebarButtonHover
+                            }`}
+                          >
+                            <Folder className={`w-4.5 h-4.5 shrink-0 ${isCurSelected ? "text-white" : "text-slate-400"}`} />
+                            <span className="truncate">{item.name}</span>
+                          </button>
+                        </li>
+                      );
+                    } else if (item.type === "link") {
+                      const externalLink = EXTERNAL_LINKS.find(l => l.id === item.targetId);
+                      return (
+                        <li key={item.id}>
+                          <button
+                            onClick={() => { if (externalLink) handleLinkOpen(externalLink.url); }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left font-medium cursor-pointer ${styles.sidebarButtonHover}`}
+                          >
+                            <div className="flex items-center space-x-3 truncate">
+                              {getLinkIcon(item.iconName || "link", "w-4.5 h-4.5")}
+                              <span className="truncate">{item.name}</span>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    }
+                    return null;
+                  })}
+                </ul>
+              )}
             </div>
 
           </aside>

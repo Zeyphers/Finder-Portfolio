@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings } from "lucide-react";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings, LayoutList } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
+import { Reorder } from "motion/react";
 
 export function AdminPanel() {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
@@ -13,10 +14,11 @@ export function AdminPanel() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const { projects, about, refreshData } = useAppletData();
+  const { projects, about, sidebar, refreshData } = useAppletData();
   const [localProjects, setLocalProjects] = useState<Project[]>(projects);
   const [localAbout, setLocalAbout] = useState<AboutInfo>(about);
-  const [activeTab, setActiveTab] = useState<"folders" | "about" | "settings">("folders");
+  const [localSidebar, setLocalSidebar] = useState<any[]>(sidebar || []);
+  const [activeTab, setActiveTab] = useState<"folders" | "about" | "settings" | "sidebar">("folders");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -29,6 +31,12 @@ export function AdminPanel() {
       setLocalAbout(JSON.parse(JSON.stringify(about)));
     }
   }, [about]);
+
+  useEffect(() => {
+    if (sidebar) {
+      setLocalSidebar(JSON.parse(JSON.stringify(sidebar)));
+    }
+  }, [sidebar]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +87,8 @@ export function AdminPanel() {
         body: JSON.stringify({ 
           PROJECTS: localProjects, 
           EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS,
-          ABOUT: localAbout
+          ABOUT: localAbout,
+          SIDEBAR: localSidebar
         })
       });
       console.log("Save response status:", res.status);
@@ -384,6 +393,17 @@ export function AdminPanel() {
             <Settings className="w-4 h-4" />
             <span>Settings</span>
           </button>
+          <button
+            onClick={() => setActiveTab("sidebar")}
+            className={`flex-1 py-1.5 px-3 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center space-x-2 ${
+              activeTab === "sidebar"
+                ? "bg-white text-slate-800 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+          >
+            <LayoutList className="w-4 h-4" />
+            <span>Sidebar</span>
+          </button>
         </div>
 
         {activeTab === "folders" && (
@@ -680,6 +700,109 @@ export function AdminPanel() {
                 </label>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "sidebar" && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6 max-w-4xl">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Sidebar Layout</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Drag and drop to rearrange your projects, external links, and section titles like an iPhone. Make sure to click Save at the top right when you're done.
+              </p>
+            </div>
+            
+            <div className="space-x-2 pb-4">
+              <button 
+                onClick={() => setLocalSidebar([...localSidebar, { id: "sec-" + Date.now(), type: "title", name: "New Section Title" }])}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-md text-sm font-medium transition"
+              >
+                + Add Title
+              </button>
+              <button 
+                onClick={() => setLocalSidebar([...localSidebar, { id: "proj-" + Date.now(), type: "project", name: "New Link / Subfolder", targetId: "" }])}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-md text-sm font-medium transition"
+              >
+                + Add Link / Folder
+              </button>
+            </div>
+
+            <Reorder.Group axis="y" values={localSidebar} onReorder={setLocalSidebar} className="space-y-2 select-none min-h-[300px]">
+              {localSidebar.map((item, idx) => (
+                <Reorder.Item key={item.id} value={item} className="bg-white border text-sm border-slate-200 rounded-lg p-3 shadow-sm flex items-center justify-between cursor-grab active:cursor-grabbing hover:border-slate-300 transition-colors">
+                  <div className="flex items-center space-x-3 w-full">
+                    {item.type === "title" ? (
+                      <span className="text-slate-400 font-bold uppercase tracking-wider text-xs w-24 shrink-0">Title</span>
+                    ) : item.type === "project" ? (
+                      <Folder className="w-4 h-4 text-slate-400 shrink-0" />
+                    ) : (
+                      <Link2 className="w-4 h-4 text-slate-400 shrink-0" />
+                    )}
+                    
+                    <input
+                      type="text"
+                      value={item.name}
+                      onChange={(e) => {
+                        const newSidebar = [...localSidebar];
+                        newSidebar[idx].name = e.target.value;
+                        setLocalSidebar(newSidebar);
+                      }}
+                      className="border-none bg-transparent focus:ring-0 focus:outline-none focus:bg-slate-50 px-1 py-0.5 rounded w-1/3 font-medium"
+                      placeholder="Display Name"
+                    />
+
+                    {item.type !== "title" && (
+                      <select
+                        value={item.targetId || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newSidebar = [...localSidebar];
+                          newSidebar[idx].targetId = val;
+                          
+                          // automatically set type to link if it starts with link-
+                          if (val.startsWith("link-")) {
+                            newSidebar[idx].type = "link";
+                            newSidebar[idx].iconName = val.replace("link-", "");
+                          } else {
+                            newSidebar[idx].type = "project";
+                          }
+                          
+                          setLocalSidebar(newSidebar);
+                        }}
+                        className="border-slate-200 rounded text-xs bg-slate-50 border focus:ring-blue-500 focus:border-blue-500 text-slate-600 bg-transparent flex-1"
+                      >
+                        <option value="">-- Select Target --</option>
+                        <optgroup label="Projects">
+                          {localProjects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="External Links">
+                          <option value="link-linkedin">LinkedIn</option>
+                          <option value="link-instagram">Instagram</option>
+                          <option value="link-facebook">Facebook</option>
+                          <option value="link-youtube">YouTube</option>
+                        </optgroup>
+                      </select>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => setLocalSidebar(localSidebar.filter(i => i.id !== item.id))}
+                    className="ml-3 p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-md transition"
+                    title="Remove item"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+            
+            {localSidebar.length === 0 && (
+              <div className="text-center p-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-500">
+                Sidebar is empty. Add a title or folder to get started.
+              </div>
+            )}
           </div>
         )}
       </main>

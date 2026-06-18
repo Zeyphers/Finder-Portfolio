@@ -50,13 +50,14 @@ export interface AboutInfo {
 }
 
 export interface SidebarItem {
-  id: string;
-  name: string;
-  iconName: string;
-  count?: number;
+  id: string; // unique ID for the sidebar entry itself
+  type: "project" | "link" | "title";
+  name: string; // display name
+  targetId?: string; // ID of the Project or ExternalLink (if applicable)
+  iconName?: string; // used for links or custom folders
 }
 
-export interface SidebarSection {
-  title: string;
+export interface SidebarConfig {
   items: SidebarItem[];
 }
+

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { Project, ExternalLink, AboutInfo } from "./types";
+import { Project, ExternalLink, AboutInfo, SidebarItem } from "./types";
 import defaultData from "./data.json";
 import { getApiUrl } from "./api";
 
@@ -7,6 +7,7 @@ interface DataContextType {
   projects: Project[];
   links: ExternalLink[];
   about: AboutInfo;
+  sidebar: SidebarItem[];
   refreshData: () => Promise<void>;
 }
 
@@ -14,6 +15,7 @@ export const DataContext = createContext<DataContextType>({
   projects: defaultData.PROJECTS as any,
   links: defaultData.EXTERNAL_LINKS as any,
   about: defaultData.ABOUT as any,
+  sidebar: (defaultData as any).SIDEBAR || [],
   refreshData: async () => {}
 });
 
@@ -32,6 +34,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return rawLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
   });
   const [about, setAbout] = useState<AboutInfo>(defaultData.ABOUT as any);
+  const [sidebar, setSidebar] = useState<SidebarItem[]>((defaultData as any).SIDEBAR || []);
 
   const refreshData = async () => {
     try {
@@ -44,8 +47,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const cleanedLinks = rawLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
         setLinks(cleanedLinks);
         
-        // Handle backwards compatibility if server data doesn't have ABOUT yet
+        // Handle backwards compatibility if server data doesn't have ABOUT or SIDEBAR yet
         setAbout(d.ABOUT || defaultData.ABOUT);
+        setSidebar(d.SIDEBAR || (defaultData as any).SIDEBAR || []);
       }
     } catch (e) {
       console.error(e);
@@ -57,7 +61,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <DataContext.Provider value={{ projects, links, about, refreshData }}>
+    <DataContext.Provider value={{ projects, links, about, sidebar, refreshData }}>
       {children}
     </DataContext.Provider>
   );

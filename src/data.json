@@ -26,6 +26,14 @@
     }
   ],
   "PROJECTS": [],
+  "SIDEBAR": [
+    { "id": "s-1", "type": "title", "name": "Projects" },
+    { "id": "s-2", "type": "title", "name": "Links" },
+    { "id": "s-linkedin", "type": "link", "name": "LinkedIn", "targetId": "link-linkedin", "iconName": "linkedin" },
+    { "id": "s-instagram", "type": "link", "name": "Instagram", "targetId": "link-instagram", "iconName": "instagram" },
+    { "id": "s-facebook", "type": "link", "name": "Facebook", "targetId": "link-facebook", "iconName": "facebook" },
+    { "id": "s-youtube", "type": "link", "name": "YouTube", "targetId": "link-youtube", "iconName": "youtube" }
+  ],
   "ABOUT": {
     "name": "Jake Pay",
     "title": "Digital & Graphic Designer",
