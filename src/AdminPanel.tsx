@@ -6,8 +6,8 @@ import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
 import { Reorder } from "motion/react";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
+import ReactQuill from "react-quill-new";
+import "react-quill-new/dist/quill.snow.css";
 
 export function AdminPanel() {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
@@ -485,7 +485,7 @@ export function AdminPanel() {
                     <div className="flex-1 min-w-0">
                       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description</label>
                       <ReactQuill 
-                        value={project.description} 
+                        value={project.description || ""} 
                         onChange={(val: string) => updateFolder(project.id, { description: val })} 
                         className="bg-white text-slate-900"
                       />
