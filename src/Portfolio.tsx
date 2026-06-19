@@ -901,7 +901,7 @@ export default function Portfolio() {
                           >
                             {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
                             <div 
-                              className="w-full relative p-1 transition-transform duration-200 group-hover:scale-[1.02]"
+                              className="w-full relative p-1"
                               style={imageAspectRatios[img.url] ? { aspectRatio: `${imageAspectRatios[img.url]}` } : undefined}
                             >
                               <ProgressiveImage 
@@ -915,8 +915,8 @@ export default function Portfolio() {
                               
                               {/* Medium opacity grey play triangle over video thumbnails */}
                               {img.isVideo && (
-                                <div className="absolute inset-1 flex items-center justify-center">
-                                  <Play className="w-14 h-14 text-slate-500/60 fill-slate-500/60 drop-shadow-md" />
+                                <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20">
+                                  <Play className="w-14 h-14 text-slate-500/70 fill-slate-500/70 drop-shadow-lg" />
                                 </div>
                               )}
                             </div>
