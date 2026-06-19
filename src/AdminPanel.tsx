@@ -6,6 +6,8 @@ import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
 import { Reorder } from "motion/react";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 export function AdminPanel() {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
@@ -442,13 +444,12 @@ export function AdminPanel() {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description</label>
-                      <textarea 
+                      <ReactQuill 
                         value={project.description} 
-                        onChange={e => updateFolder(project.id, { description: e.target.value })} 
-                        rows={4}
-                        className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none resize-none text-sm"
+                        onChange={(val: string) => updateFolder(project.id, { description: val })} 
+                        className="bg-white text-slate-900"
                       />
                     </div>
                     <div className="w-full sm:w-1/3">
