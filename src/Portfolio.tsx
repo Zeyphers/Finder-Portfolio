@@ -121,12 +121,25 @@ export default function Portfolio() {
   const dragControls = useDragControls();
   
   // Light/Dark Theme Controllers
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    if (typeof window !== "undefined" && window.matchMedia) {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  const [theme, setThemeState] = useState<"dark" | "light">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("portfolio-theme");
+      if (stored === "dark" || stored === "light") return stored;
+      if (window.matchMedia) {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
     }
     return "light";
   });
+  
+  const setTheme = (newTheme: "dark" | "light" | ((prev: "dark" | "light") => "dark" | "light")) => {
+    setThemeState(prev => {
+      const resolvedTheme = typeof newTheme === "function" ? newTheme(prev) : newTheme;
+      localStorage.setItem("portfolio-theme", resolvedTheme);
+      window.dispatchEvent(new Event("storage"));
+      return resolvedTheme;
+    });
+  };
   const isDark = theme === "dark";
 
   // Sync with device system theme switches
@@ -889,7 +902,7 @@ export default function Portfolio() {
                         } else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) {
                           extension = "jpg";
                         }
-                        const filename = `${baseName}_asset_${index + 1}.${extension}`;
+                        const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
                         
                         return (
                           <div 

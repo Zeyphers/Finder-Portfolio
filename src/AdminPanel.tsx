@@ -146,7 +146,7 @@ export function AdminPanel() {
       if (p.id === projectId) {
         return {
           ...p,
-          gallery: [...p.gallery, { url: "https://img.youtube.com/vi/default/hqdefault.jpg", caption: "New Video", isVideo: true, videoUrl: "https://www.youtube.com/watch?v=gB9mSyxdhyQ" }]
+          gallery: [...p.gallery, { url: "https://img.youtube.com/vi/gB9mSyxdhyQ/maxresdefault.jpg", caption: "New Video", isVideo: true, videoUrl: "https://www.youtube.com/watch?v=gB9mSyxdhyQ" }]
         };
       }
       return p;
@@ -226,13 +226,13 @@ export function AdminPanel() {
     if (!files || files.length === 0) return;
 
     try {
-      const newGalleryItems: { url: string, caption: string }[] = [];
+      const newGalleryItems: { url: string, caption: string, fileName?: string }[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
         try {
           const url = await uploadFileWithChunks(file);
-          newGalleryItems.push({ url, caption: "New Image" });
+          newGalleryItems.push({ url, caption: "New Image", fileName: file.name });
         } catch (err: any) {
           alert(`Upload failed for ${file.name}: ${err.message || String(err)}`);
         }
@@ -257,11 +257,29 @@ export function AdminPanel() {
     e.target.value = "";
   };
 
-  const updateImageField = (projectId: string, imageIndex: number, field: "caption" | "videoUrl", value: string) => {
+  const updateImageField = (projectId: string, imageIndex: number, field: "caption" | "videoUrl" | "fileName", value: string) => {
     setLocalProjects(localProjects.map(proj => {
       if (proj.id === projectId) {
         const newGallery = [...proj.gallery];
-        newGallery[imageIndex] = { ...newGallery[imageIndex], [field]: value };
+        const update = { ...newGallery[imageIndex], [field]: value };
+        
+        // Auto update thumbnail if it's a video url
+        if (field === "videoUrl" && value) {
+          try {
+            const urlObj = new URL(value);
+            let videoId = "";
+            if (urlObj.hostname.includes("youtube.com")) {
+              videoId = urlObj.searchParams.get("v") || "";
+            } else if (urlObj.hostname.includes("youtu.be")) {
+              videoId = urlObj.pathname.slice(1);
+            }
+            if (videoId) {
+              update.url = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+            }
+          } catch(e) {}
+        }
+        
+        newGallery[imageIndex] = update;
         return { ...proj, gallery: newGallery };
       }
       return proj;
@@ -279,9 +297,29 @@ export function AdminPanel() {
     }));
   };
 
+  const [isDarkTheme, setIsDarkTheme] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("portfolio-theme");
+      if (stored === "dark") return true;
+      if (stored === "light") return false;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const stored = localStorage.getItem("portfolio-theme");
+      if (stored === "dark") setIsDarkTheme(true);
+      else if (stored === "light") setIsDarkTheme(false);
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   if (!token) {
     return (
-      <div className="h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800 overflow-y-auto">
+      <div className={`h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800 overflow-y-auto ${isDarkTheme ? "admin-dark" : ""}`}>
         <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-200 max-w-sm w-full">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Login</h1>
@@ -313,7 +351,7 @@ export function AdminPanel() {
   }
 
   return (
-    <div className="h-screen bg-slate-50 font-sans text-slate-800 flex flex-col overflow-y-auto">
+    <div className={`h-screen bg-slate-50 font-sans text-slate-800 flex flex-col overflow-y-auto ${isDarkTheme ? "admin-dark" : ""}`}>
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center space-x-4">
           <div className="bg-blue-600 text-white p-2 rounded-md">
@@ -514,9 +552,9 @@ export function AdminPanel() {
                             <ProgressiveImage src={getImageUrl(img.url)} alt="media" objectFit="contain" className="max-w-full max-h-full rounded" containerClassName="w-full h-full flex items-center justify-center" />
                           )}
                           
-                          {/* Desktop Image Controls overlay */}
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
-                            <button onClick={() => deleteImage(project.id, index)} className="p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-full transition" title="Delete Media">
+                          {/* Image Controls overlay */}
+                          <div className="absolute top-2 right-2 flex items-center justify-center gap-2 z-10 transition-opacity duration-200">
+                            <button onClick={() => deleteImage(project.id, index)} className="p-1.5 bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 rounded border border-slate-200 shadow-sm transition" title="Delete Media">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -529,6 +567,15 @@ export function AdminPanel() {
                             onChange={(e) => updateImageField(project.id, index, "caption", e.target.value)}
                             placeholder="Image caption"
                           />
+                          {!img.isVideo && (
+                            <input 
+                              type="text" 
+                              className="w-full text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              value={img.fileName || ""}
+                              onChange={(e) => updateImageField(project.id, index, "fileName", e.target.value)}
+                              placeholder="Filename (optional)"
+                            />
+                          )}
                           {img.isVideo && (
                             <input 
                               type="text" 

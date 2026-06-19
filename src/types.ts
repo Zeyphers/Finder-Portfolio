@@ -10,6 +10,7 @@ export interface GalleryImage {
   caption: string;
   isVideo?: boolean;
   videoUrl?: string;
+  fileName?: string;
 }
 
 export interface Project {
