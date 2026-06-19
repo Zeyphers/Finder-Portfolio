@@ -416,15 +416,16 @@ export default function Portfolio() {
               >
                 <X className="w-4 h-4" />
               </button>
-              <div className="text-xs font-mono">
+              <div className="text-xs font-mono flex items-center">
+                {selectedProject.gallery[lightboxIndex].isVideo && <Youtube className="w-4 h-4 text-red-500 mr-2" />}
                 <span className="text-white font-semibold font-sans">
                   {selectedProject.gallery[lightboxIndex].fileName || 
                   (selectedProject.gallery[lightboxIndex].caption && (!selectedProject.gallery[lightboxIndex].caption.startsWith("New Image") && !selectedProject.gallery[lightboxIndex].caption.startsWith("New Video")) 
                     ? selectedProject.gallery[lightboxIndex].caption.split(":")[0] 
-                    : "Asset")}
+                    : (selectedProject.gallery[lightboxIndex].isVideo ? "YouTube Video" : "Asset"))}
                 </span>
                 <span className="text-slate-500 mx-2">|</span>
-                <span>{lightboxIndex + 1} of {selectedProject.gallery.length} images</span>
+                <span>{lightboxIndex + 1} of {selectedProject.gallery.length} items</span>
               </div>
             </div>
 
@@ -480,7 +481,7 @@ export default function Portfolio() {
               style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { 
                 transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
                 transform: `scale(${lightboxZoom})`,
-                transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform-origin 0.1s ease-out' 
+                transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
               }}
               onMouseMove={handleMouseMove}
               onTouchMove={handleTouchMove}
@@ -889,6 +890,7 @@ export default function Portfolio() {
                         } else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) {
                           extension = "jpg";
                         }
+                        if (img.isVideo) extension = "mp4";
                         const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
                         
                         return (
@@ -899,7 +901,7 @@ export default function Portfolio() {
                           >
                             {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
                             <div 
-                              className="w-full relative p-1"
+                              className="w-full relative p-1 transition-transform duration-200 group-hover:scale-[1.02]"
                               style={imageAspectRatios[img.url] ? { aspectRatio: `${imageAspectRatios[img.url]}` } : undefined}
                             >
                               <ProgressiveImage 
@@ -911,12 +913,10 @@ export default function Portfolio() {
                                 referrerPolicy="no-referrer"
                               />
                               
-                              {/* Light grey semi-transparent play triangle over video thumbnails */}
+                              {/* Medium opacity grey play triangle over video thumbnails */}
                               {img.isVideo && (
-                                <div className="absolute inset-1 flex items-center justify-center bg-black/5 rounded">
-                                  <div className="w-12 h-12 rounded-full bg-neutral-200/50 backdrop-blur-xs flex items-center justify-center text-zinc-800 shadow-md border border-white/10">
-                                    <Play className="w-5 h-5 fill-zinc-800 text-zinc-800 ml-0.5" />
-                                  </div>
+                                <div className="absolute inset-1 flex items-center justify-center">
+                                  <Play className="w-14 h-14 text-slate-500/60 fill-slate-500/60 drop-shadow-md" />
                                 </div>
                               )}
                             </div>
