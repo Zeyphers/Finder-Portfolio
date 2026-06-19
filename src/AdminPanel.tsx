@@ -567,15 +567,13 @@ export function AdminPanel() {
                             onChange={(e) => updateImageField(project.id, index, "caption", e.target.value)}
                             placeholder="Image caption"
                           />
-                          {!img.isVideo && (
-                            <input 
-                              type="text" 
-                              className="w-full text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              value={img.fileName || ""}
-                              onChange={(e) => updateImageField(project.id, index, "fileName", e.target.value)}
-                              placeholder="Filename (optional)"
-                            />
-                          )}
+                          <input 
+                            type="text" 
+                            className="w-full text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={img.fileName || ""}
+                            onChange={(e) => updateImageField(project.id, index, "fileName", e.target.value)}
+                            placeholder="Filename (optional)"
+                          />
                           {img.isVideo && (
                             <input 
                               type="text" 
