@@ -225,15 +225,13 @@ export default function Portfolio() {
   // Lightbox controller state
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxZoom, setLightboxZoom] = useState<number>(1);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
 
-  // Reset drag offset when lightbox index or zoom changes
+  // Reset zoom and panning when lightbox index changes
   useEffect(() => {
-    setDragOffset({ x: 0, y: 0 });
-    setIsDragging(false);
-  }, [lightboxIndex, lightboxZoom]);
+    setLightboxZoom(1);
+    setMousePos({ x: 50, y: 50 });
+  }, [lightboxIndex]);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -271,55 +269,43 @@ export default function Portfolio() {
     setLightboxZoom(1);
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (lightboxZoom <= 1) return;
-    e.preventDefault();
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX - dragOffset.x,
-      y: e.clientY - dragOffset.y
-    });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || lightboxZoom <= 1) return;
-    e.preventDefault();
-    setDragOffset({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y
-    });
-  };
-
-  const handleMouseUpOrLeave = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      setDragOffset({ x: 0, y: 0 });
+  const handleZoomClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (lightboxZoom === 1) {
+      setLightboxZoom(2.5);
+      updateMousePos(e);
+    } else {
+      setLightboxZoom(1);
     }
   };
 
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (lightboxZoom <= 1 || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    setIsDragging(true);
-    setDragStart({
-      x: touch.clientX - dragOffset.x,
-      y: touch.clientY - dragOffset.y
-    });
+  const updateMousePos = (e: React.MouseEvent | React.TouchEvent) => {
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    let clientX, clientY;
+    if ('touches' in e && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if ('clientX' in e) {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    } else {
+      return;
+    }
+    const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+    setMousePos({ x, y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (lightboxZoom > 1) {
+      updateMousePos(e);
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!isDragging || lightboxZoom <= 1 || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    setDragOffset({
-      x: touch.clientX - dragStart.x,
-      y: touch.clientY - dragStart.y
-    });
-  };
-
-  const handleTouchEnd = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      setDragOffset({ x: 0, y: 0 });
+    if (lightboxZoom > 1) {
+      updateMousePos(e);
     }
   };
 
@@ -431,7 +417,12 @@ export default function Portfolio() {
                 <X className="w-4 h-4" />
               </button>
               <div className="text-xs font-mono">
-                <span className="text-white font-semibold font-sans">{selectedProject.gallery[lightboxIndex].caption.split(":")[0] || "Asset"}</span>
+                <span className="text-white font-semibold font-sans">
+                  {selectedProject.gallery[lightboxIndex].fileName || 
+                  (selectedProject.gallery[lightboxIndex].caption && (!selectedProject.gallery[lightboxIndex].caption.startsWith("New Image") && !selectedProject.gallery[lightboxIndex].caption.startsWith("New Video")) 
+                    ? selectedProject.gallery[lightboxIndex].caption.split(":")[0] 
+                    : "Asset")}
+                </span>
                 <span className="text-slate-500 mx-2">|</span>
                 <span>{lightboxIndex + 1} of {selectedProject.gallery.length} images</span>
               </div>
@@ -481,23 +472,19 @@ export default function Portfolio() {
             <div 
               className={`relative max-w-full max-h-full p-2 overflow-hidden flex items-center justify-center ${
                 selectedProject.gallery[lightboxIndex].isVideo 
-                  ? "w-[85vw] md:w-[70vw] aspect-video" 
+                  ? "w-[95vw] md:w-[85vw] max-h-[85vh] aspect-video" 
                   : lightboxZoom > 1 
-                    ? "cursor-grab active:cursor-grabbing" 
-                    : "cursor-zoom-out"
+                    ? "cursor-zoom-out" 
+                    : "cursor-zoom-in"
               }`}
               style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { 
-                transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(${lightboxZoom})`,
-                transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
+                transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
+                transform: `scale(${lightboxZoom})`,
+                transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform-origin 0.1s ease-out' 
               }}
-              onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUpOrLeave}
-              onMouseLeave={handleMouseUpOrLeave}
-              onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onClick={e => e.stopPropagation()}
+              onClick={selectedProject.gallery[lightboxIndex].isVideo ? undefined : handleZoomClick}
             >
               {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
                 <iframe 
@@ -512,8 +499,8 @@ export default function Portfolio() {
                   src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
                   alt="High Resolution Portfolio Asset"
                   objectFit="contain"
-                  containerClassName="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] rounded-md shadow-2xl pointer-events-none"
-                  className="max-h-[75vh] max-w-[85vw] md:max-w-[70vw] object-contain rounded-md"
+                  containerClassName="h-[85vh] w-[90vw] md:w-[85vw] flex items-center justify-center pointer-events-none drop-shadow-2xl"
+                  className="w-full h-full rounded-md"
                   referrerPolicy="no-referrer"
                 />
               )}
@@ -884,10 +871,10 @@ export default function Portfolio() {
                 <div key={selectedProject.id} className={`h-full flex flex-col justify-start min-h-0 ${styles.textSecondary}`}>
                   
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
-                  <div className="flex-1 overflow-y-auto min-h-0 w-full scrollbar-thin p-2.5">
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full scrollbar-thin p-2.5">
                     {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && selectedProject.description.trim() !== "<p><br></p>" && (
                       <div 
-                        className={`mb-6 mt-2 px-2 text-sm sm:text-[15px] leading-relaxed break-words overflow-hidden [&_*]:break-words [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
+                        className={`mb-6 mt-2 px-2 w-full text-sm sm:text-[15px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
                         dangerouslySetInnerHTML={{ __html: selectedProject.description }}
                       />
                     )}

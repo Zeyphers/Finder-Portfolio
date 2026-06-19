@@ -6,8 +6,6 @@ import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
 import { Reorder } from "motion/react";
-import ReactQuill from "react-quill-new";
-import "react-quill-new/dist/quill.snow.css";
 
 export function AdminPanel() {
   const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
@@ -483,11 +481,12 @@ export function AdminPanel() {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1 min-w-0">
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description</label>
-                      <ReactQuill 
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description (HTML)</label>
+                      <textarea 
                         value={project.description || ""} 
-                        onChange={(val: string) => updateFolder(project.id, { description: val })} 
-                        className="bg-white text-slate-900"
+                        onChange={(e) => updateFolder(project.id, { description: e.target.value })} 
+                        className="w-full h-32 bg-slate-50 border border-slate-200 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800"
+                        placeholder="<p>Enter description with HTML tags</p>"
                       />
                     </div>
                     <div className="w-full sm:w-1/3">
