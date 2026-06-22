@@ -271,6 +271,11 @@ export default function Portfolio() {
 
   const handleZoomClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
+    if ((e.target as HTMLElement).tagName !== 'IMG' && lightboxZoom === 1) {
+      closeLightbox();
+      return;
+    }
+    
     if (lightboxZoom === 1) {
       setLightboxZoom(2.5);
       updateMousePos(e);
@@ -428,30 +433,6 @@ export default function Portfolio() {
                 <span>{lightboxIndex + 1} of {selectedProject.gallery.length} items</span>
               </div>
             </div>
-
-            {/* Lightbox zoom actions */}
-            {!selectedProject.gallery[lightboxIndex].isVideo && (
-              <div className="flex bg-slate-800 border border-white/5 rounded p-0.5 text-xs">
-                <button 
-                  onClick={() => setLightboxZoom(prev => Math.max(0.5, prev - 0.25))}
-                  className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => setLightboxZoom(1)}
-                  className="px-2 py-1 hover:bg-slate-700 text-slate-300 font-mono text-[10px] transition"
-                >
-                  {Math.round(lightboxZoom * 100)}%
-                </button>
-                <button 
-                  onClick={() => setLightboxZoom(prev => Math.min(3, prev + 0.25))}
-                  className="p-1 rounded hover:bg-slate-700 text-slate-300 transition"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Lightbox Main canvas */}
@@ -491,7 +472,7 @@ export default function Portfolio() {
                 <iframe 
                   src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
                   title={selectedProject.gallery[lightboxIndex].caption}
-                  className="w-full h-full rounded-lg shadow-2xl border-0"
+                  className="w-full h-full shadow-2xl border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                 ></iframe>
@@ -500,8 +481,8 @@ export default function Portfolio() {
                   src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
                   alt="High Resolution Portfolio Asset"
                   objectFit="contain"
-                  containerClassName="h-[85vh] w-[90vw] md:w-[85vw] flex items-center justify-center pointer-events-none drop-shadow-2xl"
-                  className="w-full h-full rounded-md"
+                  containerClassName="max-h-[85vh] max-w-[90vw] md:max-w-[85vw] flex items-center justify-center pointer-events-none drop-shadow-2xl"
+                  className="max-h-[85vh] max-w-[90vw] md:max-w-[85vw]"
                   referrerPolicy="no-referrer"
                 />
               )}
@@ -908,7 +889,7 @@ export default function Portfolio() {
                                 src={getImageUrl(img.url)} 
                                 alt={img.caption}
                                 objectFit="contain"
-                                className="w-full h-auto rounded-[inherit]"
+                                className="w-full h-auto rounded-sm"
                                 containerClassName={imageAspectRatios[img.url] ? "absolute inset-1" : "w-full"}
                                 referrerPolicy="no-referrer"
                               />
@@ -920,7 +901,7 @@ export default function Portfolio() {
                                 </div>
                               )}
                             </div>
-                            <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-4 break-words leading-tight w-full px-1`}>
+                            <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>
                               {filename}
                             </div>
                           </div>
