@@ -4,7 +4,6 @@ import { TextEditModal } from "./components/TextEditModal";
 import { MemoryGameApp } from "./components/MemoryGameApp";
 import { ContactApp } from "./components/ContactApp";
 import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
-import { YoutubeGif } from "./components/YoutubeGif";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
@@ -886,22 +885,20 @@ export default function Portfolio() {
                               className="w-full relative p-1"
                               style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}
                             >
-                              {img.isVideo ? (
-                                <div className="absolute inset-1 rounded overflow-hidden">
-                                  <YoutubeGif url={img.videoUrl || ""} className="w-full h-full opacity-80 group-hover:opacity-100 transition-opacity" />
-                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                                    <Play className="w-14 h-14 text-slate-500/70 fill-slate-500/70 drop-shadow-lg" />
-                                  </div>
+                              <ProgressiveImage 
+                                src={getImageUrl(img.url)} 
+                                alt={img.caption}
+                                objectFit="cover"
+                                className="w-full h-full rounded-sm"
+                                containerClassName="absolute inset-1"
+                                referrerPolicy="no-referrer"
+                              />
+                              
+                              {/* Medium opacity grey play triangle over video thumbnails */}
+                              {img.isVideo && (
+                                <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20">
+                                  <Play className="w-14 h-14 text-slate-500/70 fill-slate-500/70 drop-shadow-lg" />
                                 </div>
-                              ) : (
-                                <ProgressiveImage 
-                                  src={getImageUrl(img.url)} 
-                                  alt={img.caption}
-                                  objectFit="contain"
-                                  className="w-full h-auto rounded-sm"
-                                  containerClassName={imageAspectRatios[img.url] ? "absolute inset-1" : "w-full"}
-                                  referrerPolicy="no-referrer"
-                                />
                               )}
                             </div>
                             <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>
