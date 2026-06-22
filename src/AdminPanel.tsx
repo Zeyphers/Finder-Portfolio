@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings, LayoutList } from "lucide-react";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings, LayoutList, ChevronDown, ChevronUp } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
@@ -23,6 +23,23 @@ export function AdminPanel() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [dragActiveProjectId, setDragActiveProjectId] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem("admin-expanded-folders");
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error("Failed to parse expanded folders", e);
+    }
+    return {};
+  });
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = { ...prev, [folderId]: !prev[folderId] };
+      localStorage.setItem("admin-expanded-folders", JSON.stringify(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!isInitialized && projects.length > 0) {
@@ -466,8 +483,28 @@ export function AdminPanel() {
             <div className="space-y-8 pb-20">
               {localProjects.map((project, folderIndex) => (
             <div key={project.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-slate-50 border-b border-slate-200 p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex-1 space-y-3 w-full">
+              <div 
+                className="bg-slate-100 border-b border-slate-200 p-3 sm:px-6 flex justify-between items-center cursor-pointer hover:bg-slate-200 transition"
+                onClick={() => toggleFolder(project.id)}
+              >
+                <div className="flex items-center space-x-3">
+                  <Folder className="w-5 h-5 text-slate-500" />
+                  <span className="font-semibold text-slate-700">{project.name || "Unnamed Folder"}</span>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <span className="text-slate-400 text-xs font-medium">{project.gallery?.length || 0} items</span>
+                  {expandedFolders[project.id] !== false ? (
+                    <ChevronUp className="w-5 h-5 text-slate-500" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-slate-500" />
+                  )}
+                </div>
+              </div>
+
+              {expandedFolders[project.id] !== false && (
+                <>
+                  <div className="bg-slate-50 border-b border-slate-200 p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex-1 space-y-3 w-full">
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1">
                       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Name</label>
@@ -548,7 +585,7 @@ export function AdminPanel() {
                 }}
               >
                 {dragActiveProjectId === project.id && (
-                  <div className="absolute inset-0 z-10 border-2 border-dashed border-blue-500 rounded-b-xl flex items-center justify-center bg-blue-50/80 pointer-events-none">
+                  <div className="absolute inset-0 z-50 border-2 border-dashed border-blue-500 rounded-b-xl flex items-center justify-center bg-blue-50/90 backdrop-blur-sm pointer-events-none">
                     <div className="text-blue-600 font-medium flex items-center space-x-2">
                       <Upload className="w-5 h-5 animate-bounce" />
                       <span>Drop files to add to gallery</span>
@@ -627,6 +664,8 @@ export function AdminPanel() {
                   )}
                 </div>
               </div>
+              </>
+            )}
             </div>
           ))}
           
