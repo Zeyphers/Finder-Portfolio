@@ -269,13 +269,13 @@ export default function Portfolio() {
     setLightboxZoom(1);
   };
 
-  const handleZoomClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleZoomClick = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
-    if ((e.target as HTMLElement).tagName !== 'IMG' && lightboxZoom === 1) {
+    if ((e.target as HTMLElement).tagName !== 'IMG') {
       closeLightbox();
       return;
     }
-    
+
     if (lightboxZoom === 1) {
       setLightboxZoom(2.5);
       updateMousePos(e);
@@ -466,7 +466,6 @@ export default function Portfolio() {
               }}
               onMouseMove={handleMouseMove}
               onTouchMove={handleTouchMove}
-              onClick={selectedProject.gallery[lightboxIndex].isVideo ? undefined : handleZoomClick}
             >
               {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
                 <iframe 
@@ -481,9 +480,10 @@ export default function Portfolio() {
                   src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
                   alt="High Resolution Portfolio Asset"
                   objectFit="contain"
-                  containerClassName="max-h-[85vh] max-w-[90vw] md:max-w-[85vw] flex items-center justify-center pointer-events-none drop-shadow-2xl"
-                  className="max-h-[85vh] max-w-[90vw] md:max-w-[85vw]"
+                  containerClassName="max-h-[85vh] max-w-[90vw] md:max-w-[85vw] flex items-center justify-center drop-shadow-2xl"
+                  className="max-h-[85vh] max-w-[90vw] md:max-w-[85vw] pointer-events-auto"
                   referrerPolicy="no-referrer"
+                  onClick={handleZoomClick}
                 />
               )}
             </div>

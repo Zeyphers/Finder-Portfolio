@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Project, ExternalLink, AboutInfo, SidebarItem } from "./types";
-import defaultData from "./data.json";
 import { getApiUrl } from "./api";
 
 interface DataContextType {
@@ -11,11 +10,23 @@ interface DataContextType {
   refreshData: () => Promise<void>;
 }
 
+const fallbackAbout: AboutInfo = {
+  name: "Zeyphers",
+  bioContext: "Full-Stack Developer",
+  statusLine: "ONLINE",
+  profileImage: "",
+  socialImage: "",
+  contactEmail: "jakeypay@gmail.com",
+  currentRole: "Lead Developer",
+  location: "United States",
+  disableContactCooldown: false
+};
+
 export const DataContext = createContext<DataContextType>({
-  projects: defaultData.PROJECTS as any,
-  links: defaultData.EXTERNAL_LINKS as any,
-  about: defaultData.ABOUT as any,
-  sidebar: (defaultData as any).SIDEBAR || [],
+  projects: [],
+  links: [],
+  about: fallbackAbout,
+  sidebar: [],
   refreshData: async () => {}
 });
 
@@ -28,13 +39,10 @@ const cleanLinkName = (name: string) => {
 };
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>(defaultData.PROJECTS as any);
-  const [links, setLinks] = useState<ExternalLink[]>(() => {
-    const rawLinks = (defaultData.EXTERNAL_LINKS || []) as any[];
-    return rawLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
-  });
-  const [about, setAbout] = useState<AboutInfo>(defaultData.ABOUT as any);
-  const [sidebar, setSidebar] = useState<SidebarItem[]>((defaultData as any).SIDEBAR || []);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [links, setLinks] = useState<ExternalLink[]>([]);
+  const [about, setAbout] = useState<AboutInfo>(fallbackAbout);
+  const [sidebar, setSidebar] = useState<SidebarItem[]>([]);
 
   const refreshData = async () => {
     try {
