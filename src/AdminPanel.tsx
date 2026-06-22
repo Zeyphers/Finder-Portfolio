@@ -5,6 +5,7 @@ import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Ch
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
+import { YoutubeGif } from "./components/YoutubeGif";
 import { Reorder } from "motion/react";
 
 export function AdminPanel() {
@@ -617,10 +618,10 @@ export function AdminPanel() {
                       <div key={index} className="group relative border border-slate-200 rounded-lg overflow-hidden bg-slate-100 flex flex-col aspect-square">
                         <div className="flex-1 bg-black/5 relative p-2 flex items-center justify-center min-h-0">
                           {img.isVideo ? (
-                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded text-red-500 overflow-hidden relative">
-                              <ProgressiveImage src={getImageUrl(img.url)} containerClassName="absolute inset-0" className="w-full h-full opacity-50" />
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <FileVideo className="w-8 h-8 opacity-90" />
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded overflow-hidden relative">
+                              <YoutubeGif url={img.videoUrl || ""} className="absolute inset-0 w-full h-full opacity-70 group-hover:opacity-100 transition-opacity" squareCrop />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <FileVideo className="w-8 h-8 opacity-90 text-white drop-shadow-md" />
                               </div>
                             </div>
                           ) : (
