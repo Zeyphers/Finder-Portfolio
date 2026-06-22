@@ -185,6 +185,7 @@ async function startServer() {
   };
 
   app.get("/api/data", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const dataPath = path.join(process.cwd(), "src/data.json");
       const data = fs.readFileSync(dataPath, "utf-8");

@@ -74,7 +74,7 @@ export function AdminPanel() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const currentRemoteDataRes = await fetch(getApiUrl("/api/data"));
+      const currentRemoteDataRes = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
       const currentRemoteData = await currentRemoteDataRes.json();
       
       console.log("Saving to:", getApiUrl("/api/data"));

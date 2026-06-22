@@ -38,7 +38,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const refreshData = async () => {
     try {
-      const res = await fetch(getApiUrl("/api/data"));
+      const res = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
       if (res.ok) {
         const d = await res.json();
         setProjects(d.PROJECTS || []);

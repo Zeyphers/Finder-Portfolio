@@ -920,9 +920,9 @@ export default function Portfolio() {
                                 </div>
                               )}
                             </div>
-                            <span className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-4 break-words leading-tight w-full px-1`}>
+                            <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-4 break-words leading-tight w-full px-1`}>
                               {filename}
-                            </span>
+                            </div>
                           </div>
                         );
                       })}
