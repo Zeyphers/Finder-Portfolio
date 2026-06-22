@@ -18,25 +18,30 @@ export function AdminPanel() {
   const [localProjects, setLocalProjects] = useState<Project[]>(projects);
   const [localAbout, setLocalAbout] = useState<AboutInfo>(about);
   const [localSidebar, setLocalSidebar] = useState<any[]>(sidebar || []);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [activeTab, setActiveTab] = useState<"folders" | "about" | "settings" | "sidebar">("folders");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [dragActiveProjectId, setDragActiveProjectId] = useState<string | null>(null);
 
   useEffect(() => {
-    setLocalProjects(JSON.parse(JSON.stringify(projects)));
-  }, [projects]);
+    if (!isInitialized && projects.length > 0) {
+      setLocalProjects(JSON.parse(JSON.stringify(projects)));
+      setIsInitialized(true);
+    }
+  }, [projects, isInitialized]);
 
   useEffect(() => {
-    if (about) {
+    if (!isInitialized && about) {
       setLocalAbout(JSON.parse(JSON.stringify(about)));
     }
-  }, [about]);
+  }, [about, isInitialized]);
 
   useEffect(() => {
-    if (sidebar) {
+    if (!isInitialized && sidebar && sidebar.length > 0) {
       setLocalSidebar(JSON.parse(JSON.stringify(sidebar)));
     }
-  }, [sidebar]);
+  }, [sidebar, isInitialized]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,8 +224,7 @@ export function AdminPanel() {
     e.target.value = "";
   };
 
-  const handleFileUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  const processFilesForGallery = async (projectId: string, files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
     try {
@@ -237,7 +241,7 @@ export function AdminPanel() {
       }
       
       if (newGalleryItems.length > 0) {
-        setLocalProjects(localProjects.map(p => {
+        setLocalProjects(localProjects => localProjects.map(p => {
           if (p.id === projectId) {
             return {
               ...p,
@@ -251,7 +255,12 @@ export function AdminPanel() {
       console.error("Upload error", err);
       alert("Upload error: " + (err.message || String(err)));
     }
-    
+  };
+
+  const handleFileUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      await processFilesForGallery(projectId, e.target.files);
+    }
     e.target.value = "";
   };
 
@@ -515,7 +524,37 @@ export function AdminPanel() {
                 </div>
               </div>
 
-              <div className="p-4 sm:p-6">
+              <div 
+                className={`p-4 sm:p-6 transition-colors duration-200 relative ${dragActiveProjectId === project.id ? "bg-slate-100" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragActiveProjectId !== project.id) {
+                    setDragActiveProjectId(project.id);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  const isOutside = !e.currentTarget.contains(e.relatedTarget as Node);
+                  if (isOutside) {
+                    setDragActiveProjectId(null);
+                  }
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  setDragActiveProjectId(null);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    await processFilesForGallery(project.id, e.dataTransfer.files);
+                  }
+                }}
+              >
+                {dragActiveProjectId === project.id && (
+                  <div className="absolute inset-0 z-10 border-2 border-dashed border-blue-500 rounded-b-xl flex items-center justify-center bg-blue-50/80 pointer-events-none">
+                    <div className="text-blue-600 font-medium flex items-center space-x-2">
+                      <Upload className="w-5 h-5 animate-bounce" />
+                      <span>Drop files to add to gallery</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-slate-700">Media Gallery ({project.gallery.length})</h3>
                   <div className="flex space-x-2">

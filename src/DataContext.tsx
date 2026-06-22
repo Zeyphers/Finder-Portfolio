@@ -56,8 +56,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setLinks(cleanedLinks);
         
         // Handle backwards compatibility if server data doesn't have ABOUT or SIDEBAR yet
-        setAbout(d.ABOUT || defaultData.ABOUT);
-        setSidebar(d.SIDEBAR || (defaultData as any).SIDEBAR || []);
+        setAbout(d.ABOUT || fallbackAbout);
+        setSidebar(d.SIDEBAR || []);
       }
     } catch (e) {
       console.error(e);
