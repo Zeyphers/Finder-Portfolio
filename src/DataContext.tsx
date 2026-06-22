@@ -12,7 +12,7 @@ interface DataContextType {
 
 const fallbackAbout: AboutInfo = {
   name: "Zeyphers",
-  bioContext: "Full-Stack Developer",
+  title: "Full-Stack Developer",
   statusLine: "ONLINE",
   profileImage: "",
   socialImage: "",
