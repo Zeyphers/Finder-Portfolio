@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Apple Colors Emoji", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -7,22 +8,27 @@
 }
 
 /* Rounded macOS custom elements */
-.osx-scrollbar::-webkit-scrollbar {
+::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 
-.osx-scrollbar::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.osx-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.4);
   border-radius: 99px;
 }
 
-.osx-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.6);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
 }
 
 html, body {
@@ -36,6 +42,7 @@ html, body {
   margin: 0;
   padding: 0;
   overscroll-behavior: none;
+  color-scheme: dark light;
 }
 
 /* Elegant and soothing theme transitions for light/dark mode */

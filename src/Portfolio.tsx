@@ -37,8 +37,10 @@ import {
   Instagram,
   Linkedin,
   Youtube,
-  Play
+  Play,
+  ChevronDown
 } from "lucide-react";
+import 'react-quill-new/dist/quill.snow.css';
 
 const getYoutubeEmbedUrl = (url: string): string => {
   if (!url) return "";
@@ -68,8 +70,28 @@ const getYoutubeEmbedUrl = (url: string): string => {
 
 // getImageUrl is imported from api.ts
 
+// Safe localStorage wrappers to prevent iframe cross-origin DOMException
+const safeGetItem = (key: string) => {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+};
+const safeSetItem = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch (e) {}
+};
+
 export default function Portfolio() {
-  const { projects: PROJECTS, links: EXTERNAL_LINKS, about, sidebar: SIDEBAR } = useAppletData();
+  const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR } = useAppletData();
+  
+  const isProd = window.location.hostname.includes('netlify.app') || window.location.hostname === 'jake-pay.com' || window.location.hostname === 'www.jake-pay.com';
+  
+  const PROJECTS = React.useMemo(() => {
+    if (isProd) return RAW_PROJECTS.filter(p => p.id !== "test-folder");
+    return RAW_PROJECTS;
+  }, [RAW_PROJECTS, isProd]);
+
+  const SIDEBAR = React.useMemo(() => {
+    if (isProd) return RAW_SIDEBAR.filter(s => s.targetId !== "test-folder" && s.id !== "test-folder");
+    return RAW_SIDEBAR;
+  }, [RAW_SIDEBAR, isProd]);
   
   // Set tab icon (favicon) when about.tabIconUrl changes
   useEffect(() => {
@@ -123,7 +145,7 @@ export default function Portfolio() {
   // Light/Dark Theme Controllers
   const [theme, setThemeState] = useState<"dark" | "light">(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("portfolio-theme");
+      const stored = safeGetItem("portfolio-theme");
       if (stored === "dark" || stored === "light") return stored;
       if (window.matchMedia) {
         return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -132,10 +154,16 @@ export default function Portfolio() {
     return "light";
   });
   
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.style.colorScheme = theme;
+    }
+  }, [theme]);
+  
   const setTheme = (newTheme: "dark" | "light" | ((prev: "dark" | "light") => "dark" | "light")) => {
     setThemeState(prev => {
       const resolvedTheme = typeof newTheme === "function" ? newTheme(prev) : newTheme;
-      localStorage.setItem("portfolio-theme", resolvedTheme);
+      safeSetItem("portfolio-theme", resolvedTheme);
       window.dispatchEvent(new Event("storage"));
       return resolvedTheme;
     });
@@ -408,15 +436,15 @@ export default function Portfolio() {
       {/* 7. macOS Preview Lightbox Overlay */}
       {lightboxIndex !== null && selectedProject && (
         <div 
-          className="fixed inset-0 z-50 bg-black/90 flex flex-col justify-between items-center p-4 animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center animate-fade-in overflow-y-auto osx-scrollbar"
           onClick={closeLightbox}
         >
-          {/* Lightbox Toolbar Header */}
-          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 relative z-50" onClick={e => e.stopPropagation()}>
+          {/* Lightbox Toolbar Header - Fixed at top */}
+          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 sticky top-0 z-50" onClick={e => e.stopPropagation()}>
             <div className="flex items-center space-x-3">
               <button 
                 onClick={closeLightbox}
-                className="w-7 h-7 rounded-full bg-slate-800 font-bold flex items-center justify-center cursor-pointer"
+                className="w-7 h-7 rounded-full bg-slate-800 font-bold flex items-center justify-center cursor-pointer hover:bg-slate-700 transition"
                 title="Close Preview (ESC)"
               >
                 <X className="w-4 h-4" />
@@ -435,80 +463,103 @@ export default function Portfolio() {
             </div>
           </div>
 
-          {/* Lightbox Main canvas */}
-          <div className="flex-1 flex items-center justify-center relative w-full h-full min-h-0 select-none">
-            {/* Left Button */}
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                const prev = (lightboxIndex - 1 + selectedProject.gallery.length) % selectedProject.gallery.length;
-                setLightboxIndex(prev);
-                setLightboxZoom(1);
-              }}
-              className="absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer focus:outline-none"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
+          <div className="w-full min-h-[calc(100dvh-80px)] flex-1 shrink-0 flex flex-col items-center justify-center relative pb-20">
+            {/* Lightbox Main canvas */}
+            <div className="w-full flex-1 flex items-center justify-center relative min-h-0 select-none my-4">
+              {/* Left Button */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const prev = (lightboxIndex - 1 + selectedProject.gallery.length) % selectedProject.gallery.length;
+                  setLightboxIndex(prev);
+                  setLightboxZoom(1);
+                }}
+                className="absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
 
-            {/* Display Image with zoom capability or YouTube Video embed */}
-            <div 
-              className={`relative max-w-full max-h-full p-2 overflow-hidden flex items-center justify-center ${
-                selectedProject.gallery[lightboxIndex].isVideo 
-                  ? "w-[95vw] md:w-[85vw] max-h-[85vh] aspect-video" 
-                  : lightboxZoom > 1 
-                    ? "cursor-zoom-out" 
-                    : "cursor-zoom-in"
-              }`}
-              style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { 
-                transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
-                transform: `scale(${lightboxZoom})`,
-                transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
-              }}
-              onMouseMove={handleMouseMove}
-              onTouchMove={handleTouchMove}
-            >
-              {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
-                <iframe 
-                  src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
-                  title={selectedProject.gallery[lightboxIndex].caption}
-                  className="w-full h-full shadow-2xl border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                ></iframe>
-              ) : (
-                <ProgressiveImage 
-                  src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
-                  alt="High Resolution Portfolio Asset"
-                  objectFit="contain"
-                  containerClassName="max-h-[85vh] max-w-[90vw] md:max-w-[85vw] flex items-center justify-center drop-shadow-2xl"
-                  className="max-h-[85vh] max-w-[90vw] md:max-w-[85vw] pointer-events-auto"
-                  referrerPolicy="no-referrer"
-                  onClick={handleZoomClick}
-                />
-              )}
+              {/* Display Image with zoom capability or YouTube Video embed */}
+              <div 
+                className={`relative max-w-full max-h-full h-full p-2 overflow-hidden flex items-center justify-center ${
+                  selectedProject.gallery[lightboxIndex].isVideo 
+                    ? "w-[95vw] md:w-[85vw] aspect-video" 
+                    : lightboxZoom > 1 
+                      ? "cursor-zoom-out" 
+                      : "cursor-zoom-in"
+                }`}
+                style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { 
+                  transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
+                  transform: `scale(${lightboxZoom})`,
+                  transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
+                }}
+                onMouseMove={handleMouseMove}
+                onTouchMove={handleTouchMove}
+              >
+                {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
+                  <iframe 
+                    src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
+                    title={selectedProject.gallery[lightboxIndex].caption}
+                    className="w-full h-full shadow-2xl border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  ></iframe>
+                ) : (
+                  <ProgressiveImage 
+                    src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
+                    alt="High Resolution Portfolio Asset"
+                    objectFit="contain"
+                    containerClassName="w-full h-full max-h-full max-w-[90vw] md:max-w-[85vw] flex items-center justify-center drop-shadow-2xl"
+                    className="w-full h-full max-h-full max-w-[90vw] md:max-w-[85vw] pointer-events-auto"
+                    referrerPolicy="no-referrer"
+                    onClick={handleZoomClick}
+                  />
+                )}
+              </div>
+
+              {/* Right Button */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const next = (lightboxIndex + 1) % selectedProject.gallery.length;
+                  setLightboxIndex(next);
+                  setLightboxZoom(1);
+                }}
+                className="absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
             </div>
 
-            {/* Right Button */}
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                const next = (lightboxIndex + 1) % selectedProject.gallery.length;
-                setLightboxIndex(next);
-                setLightboxZoom(1);
-              }}
-              className="absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer focus:outline-none"
+            {/* Caption text footer */}
+            <div 
+              className="w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 shrink-0 select-text mb-4"
+              onClick={e => e.stopPropagation()}
             >
-              <ChevronRight className="w-6 h-6" />
-            </button>
+              <p className="font-sans leading-relaxed italic">{selectedProject.gallery[lightboxIndex].caption}</p>
+            </div>
+
+            {/* Scroll Hint */}
+            {selectedProject.gallery[lightboxIndex].processInfoHtml && selectedProject.gallery[lightboxIndex].processInfoHtml !== '<p><br></p>' && (
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center text-white/70 animate-bounce">
+                <span className="text-xs uppercase tracking-widest mb-1 font-semibold drop-shadow-md">Scroll to see process</span>
+                <ChevronDown className="w-5 h-5 drop-shadow-md" />
+              </div>
+            )}
           </div>
 
-          {/* Caption text footer */}
-          <div 
-            className="w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 mt-4 h-fit shrink-0 select-text"
-            onClick={e => e.stopPropagation()}
-          >
-            <p className="font-sans leading-relaxed italic">{selectedProject.gallery[lightboxIndex].caption}</p>
-          </div>
+          {/* Process Info Content */}
+          {selectedProject.gallery[lightboxIndex].processInfoHtml && selectedProject.gallery[lightboxIndex].processInfoHtml !== '<p><br></p>' && (
+            <div 
+              className="w-[95vw] md:w-[85vw] max-w-6xl mx-auto bg-slate-900/95 rounded-xl shadow-2xl mb-32 shrink-0 z-10 relative overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div 
+                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300"
+                dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml! }}
+              />
+            </div>
+          )}
         </div>
       )}      {/* Main Finder Window container */}
       <motion.div 
@@ -585,7 +636,7 @@ export default function Portfolio() {
         <div className={`flex-1 flex overflow-hidden min-h-0 ${isDark ? "bg-[#2a2a2c]" : "bg-white"}`}>
           
           {/* A. Dynamic sidebar layout list */}
-          <aside className={`theme-transition hidden md:flex w-64 shrink-0 ${styles.sidebarBg} p-4 flex-col space-y-5 select-none overflow-y-auto scrollbar-thin`}>
+          <aside className={`theme-transition hidden md:flex w-64 shrink-0 ${styles.sidebarBg} p-4 flex-col space-y-5 select-none overflow-y-auto`}>
             
             {/* 1. Overview and Biography file item index shortcuts */}
             <div>
@@ -698,7 +749,7 @@ export default function Portfolio() {
           </aside>
 
           {/* B. Center workspace directory canvas */}
-          <main className={`theme-transition flex-1 overflow-y-auto p-2.5 relative min-w-0 flex flex-col justify-start ${styles.mainCanvasBg} scrollbar-thin select-none`}>
+          <main className={`theme-transition flex-1 overflow-y-auto p-2.5 relative min-w-0 flex flex-col justify-start ${styles.mainCanvasBg} select-none`}>
             
             {activeSelection === "overview" ? (
               // ==================== STATE 1: TOP-LEVEL OVERVIEW VIEW ====================
@@ -706,7 +757,7 @@ export default function Portfolio() {
                 
                 <div className="pt-2" />
 
-                <div className="flex-1 overflow-y-auto pb-6 space-y-6 scrollbar-thin">
+                <div className="flex-1 overflow-y-auto pb-6 space-y-6">
                   
                   {/* Projects Section */}
                   {filteredOverviewFolders.length > 0 && (
@@ -853,7 +904,7 @@ export default function Portfolio() {
                 <div key={selectedProject.id} className={`h-full flex flex-col justify-start min-h-0 ${styles.textSecondary}`}>
                   
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
-                  <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full scrollbar-thin p-2.5">
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full p-2.5">
                     {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && selectedProject.description.trim() !== "<p><br></p>" && (
                       <div 
                         className={`mb-6 mt-2 px-2 w-full text-sm sm:text-[15px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}

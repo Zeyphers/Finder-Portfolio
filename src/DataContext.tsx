@@ -13,12 +13,12 @@ interface DataContextType {
 const fallbackAbout: AboutInfo = {
   name: "Zeyphers",
   title: "Full-Stack Developer",
-  statusLine: "ONLINE",
-  profileImage: "",
-  socialImage: "",
-  contactEmail: "jakeypay@gmail.com",
-  currentRole: "Lead Developer",
+  established: "2026",
   location: "United States",
+  intro: "Hello! I am a full-stack developer.",
+  bio: "This is my bio.",
+  contact: "jakeypay@gmail.com",
+  signoff: "Best, Zeyphers",
   disableContactCooldown: false
 };
 

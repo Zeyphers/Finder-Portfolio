@@ -105,7 +105,7 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
         </div>
 
         {/* Paper Container */}
-        <div className={`flex-1 overflow-y-auto ${styles.editorBg} p-6 flex justify-center scrollbar-thin`}>
+        <div className={`flex-1 overflow-y-auto ${styles.editorBg} p-6 flex justify-center`}>
           
           {/* Paper Sheet */}
           <div className={styles.paperBg}>

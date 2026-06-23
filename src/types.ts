@@ -11,6 +11,7 @@ export interface GalleryImage {
   isVideo?: boolean;
   videoUrl?: string;
   fileName?: string;
+  processInfoHtml?: string;
 }
 
 export interface Project {

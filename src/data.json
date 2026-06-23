@@ -25,9 +25,31 @@
       "iconName": "youtube"
     }
   ],
-  "PROJECTS": [],
+  "PROJECTS": [
+    {
+      "id": "test-folder",
+      "name": "Test Folder",
+      "client": "Test Client",
+      "category": "Testing",
+      "date": "2026",
+      "description": "Folder containing test images with process text.",
+      "tags": ["Test"],
+      "gallery": [
+        {
+          "url": "https://picsum.photos/seed/test1/800/600",
+          "caption": "A test image with process info",
+          "processInfoHtml": "<h1>Process Overview</h1><p>Here is some <strong>test process text</strong>.</p><p><img src=\"https://picsum.photos/seed/test2/400/300\" alt=\"Inline test\" /></p><ul><li>Step 1: Ideation</li><li>Step 2: Execution</li></ul>"
+        },
+        {
+          "url": "https://picsum.photos/seed/test3/800/600",
+          "caption": "A test image without process info"
+        }
+      ]
+    }
+  ],
   "SIDEBAR": [
     { "id": "s-1", "type": "title", "name": "Projects" },
+    { "id": "s-test-folder", "type": "folder", "name": "Test Folder", "targetId": "test-folder" },
     { "id": "s-2", "type": "title", "name": "Links" },
     { "id": "s-linkedin", "type": "link", "name": "LinkedIn", "targetId": "link-linkedin", "iconName": "linkedin" },
     { "id": "s-instagram", "type": "link", "name": "Instagram", "targetId": "link-instagram", "iconName": "instagram" },

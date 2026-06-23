@@ -5,10 +5,22 @@ import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Ch
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
+import { ProcessEditorModal } from "./components/ProcessEditorModal";
 import { Reorder } from "motion/react";
 
+// Safe localStorage wrappers to prevent iframe cross-origin DOMException
+const safeGetItem = (key: string) => {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+};
+const safeSetItem = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch (e) {}
+};
+const safeRemoveItem = (key: string) => {
+  try { localStorage.removeItem(key); } catch (e) {}
+};
+
 export function AdminPanel() {
-  const [token, setToken] = useState(localStorage.getItem("adminToken") || "");
+  const [token, setToken] = useState(safeGetItem("adminToken") || "");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,9 +35,10 @@ export function AdminPanel() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [dragActiveProjectId, setDragActiveProjectId] = useState<string | null>(null);
+  const [processEditorOpen, setProcessEditorOpen] = useState<{ projectId: string; imageIndex: number } | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
     try {
-      const stored = localStorage.getItem("admin-expanded-folders");
+      const stored = safeGetItem("admin-expanded-folders");
       if (stored) return JSON.parse(stored);
     } catch (e) {
       console.error("Failed to parse expanded folders", e);
@@ -36,7 +49,7 @@ export function AdminPanel() {
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => {
       const next = { ...prev, [folderId]: !prev[folderId] };
-      localStorage.setItem("admin-expanded-folders", JSON.stringify(next));
+      safeSetItem("admin-expanded-folders", JSON.stringify(next));
       return next;
     });
   };
@@ -75,7 +88,7 @@ export function AdminPanel() {
       console.log("Login response data: ", data);
       
       if (data.success) {
-        localStorage.setItem("adminToken", data.token);
+        safeSetItem("adminToken", data.token);
         setToken(data.token);
         navigate("/admin");
       } else {
@@ -88,7 +101,7 @@ export function AdminPanel() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("adminToken");
+    safeRemoveItem("adminToken");
     setToken("");
     navigate("/");
   };
@@ -281,7 +294,7 @@ export function AdminPanel() {
     e.target.value = "";
   };
 
-  const updateImageField = (projectId: string, imageIndex: number, field: "caption" | "videoUrl" | "fileName", value: string) => {
+  const updateImageField = (projectId: string, imageIndex: number, field: "caption" | "videoUrl" | "fileName" | "processInfoHtml", value: string) => {
     setLocalProjects(localProjects.map(proj => {
       if (proj.id === projectId) {
         const newGallery = [...proj.gallery];
@@ -323,7 +336,7 @@ export function AdminPanel() {
 
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("portfolio-theme");
+      const stored = safeGetItem("portfolio-theme");
       if (stored === "dark") return true;
       if (stored === "light") return false;
       return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -333,7 +346,7 @@ export function AdminPanel() {
 
   useEffect(() => {
     const handleStorageChange = () => {
-      const stored = localStorage.getItem("portfolio-theme");
+      const stored = safeGetItem("portfolio-theme");
       if (stored === "dark") setIsDarkTheme(true);
       else if (stored === "light") setIsDarkTheme(false);
     };
@@ -629,6 +642,10 @@ export function AdminPanel() {
                           
                           {/* Image Controls overlay */}
                           <div className="absolute top-2 right-2 flex items-center justify-center gap-2 z-10 transition-opacity duration-200">
+                            <button onClick={() => setProcessEditorOpen({ projectId: project.id, imageIndex: index })} className={`flex items-center gap-1.5 px-2 py-1.5 bg-white hover:bg-blue-50 ${img.processInfoHtml ? 'text-blue-600 font-medium' : 'text-slate-500 hover:text-blue-600'} rounded border border-slate-200 shadow-sm transition text-[10px] uppercase tracking-wider`} title="Edit Process Details">
+                              <Edit2 className="w-3.5 h-3.5" />
+                              {img.processInfoHtml ? 'Edit Process' : 'Add Process'}
+                            </button>
                             <button onClick={() => deleteImage(project.id, index)} className="p-1.5 bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 rounded border border-slate-200 shadow-sm transition" title="Delete Media">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -929,6 +946,20 @@ export function AdminPanel() {
           </div>
         )}
       </main>
+
+      {processEditorOpen && (
+        <ProcessEditorModal
+          initialValue={
+            localProjects.find(p => p.id === processEditorOpen.projectId)?.gallery[processEditorOpen.imageIndex]?.processInfoHtml || ''
+          }
+          onSave={(value) => {
+            const finalValue = (value === '<p><br></p>' || !value.trim()) ? '' : value;
+            updateImageField(processEditorOpen.projectId, processEditorOpen.imageIndex, "processInfoHtml", finalValue);
+            setProcessEditorOpen(null);
+          }}
+          onClose={() => setProcessEditorOpen(null)}
+        />
+      )}
     </div>
   );
 }

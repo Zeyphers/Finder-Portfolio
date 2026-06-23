@@ -168,7 +168,10 @@ async function startServer() {
 
   app.post("/api/login", (req, res) => {
     const { username, password } = req.body;
-    if (username === "jake" && password === "DexHan101") {
+    const validUser = process.env.ADMIN_USERNAME || "jake";
+    const validPass = process.env.ADMIN_PASSWORD || "DexHan101";
+
+    if (username === validUser && password === validPass) {
       res.json({ success: true, token: "admin-token-123" });
     } else {
       res.status(401).json({ success: false, message: "Invalid credentials" });

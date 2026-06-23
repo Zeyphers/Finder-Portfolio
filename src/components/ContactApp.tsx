@@ -125,7 +125,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto p-6">
           {status === "success" ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-300">
               <CheckCircle2 className="w-16 h-16 text-emerald-500 mb-4" />
