@@ -577,7 +577,7 @@ export default function Portfolio() {
               onClick={e => e.stopPropagation()}
             >
               <div 
-                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300"
+                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 break-words whitespace-pre-wrap [&_p]:break-words [&_a]:break-all [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
                 dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml! }}
               />
             </div>

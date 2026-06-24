@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
-import ReactQuill from 'react-quill-new';
+import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+
+// Ensure window.Quill is set for modules that require it
+if (typeof window !== 'undefined') {
+  (window as any).Quill = Quill;
+}
+import ImageResize from 'quill-image-resize-module-react';
+
+// Register the image resize module
+Quill.register('modules/imageResize', ImageResize);
 
 interface ProcessEditorModalProps {
   initialValue: string;
@@ -32,7 +41,11 @@ export function ProcessEditorModal({ initialValue, onSave, onClose }: ProcessEdi
                   [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
                   ['link', 'image', 'video'],
                   ['clean']
-                ]
+                ],
+                imageResize: {
+                  parchment: Quill.import('parchment'),
+                  modules: ['Resize', 'DisplaySize']
+                }
               }}
             />
           </div>
