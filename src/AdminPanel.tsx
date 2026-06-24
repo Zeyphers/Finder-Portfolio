@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings, LayoutList, ChevronDown, ChevronUp } from "lucide-react";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings, LayoutList, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
@@ -45,6 +45,33 @@ export function AdminPanel() {
     }
     return {};
   });
+
+  const [backupsList, setBackupsList] = useState<any[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [uploadingGifs, setUploadingGifs] = useState(false);
+
+  const fetchBackups = async () => {
+    setLoadingBackups(true);
+    try {
+      const res = await fetch(getApiUrl("/api/backups"), {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackupsList(data.backups || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch backups:", err);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token && activeTab === "settings") {
+      fetchBackups();
+    }
+  }, [token, activeTab]);
 
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => {
@@ -324,6 +351,85 @@ export function AdminPanel() {
       await processFilesForGallery(projectId, e.target.files);
     }
     e.target.value = "";
+  };
+
+  const downloadUrls = () => {
+    const urls: string[] = [];
+    localProjects.forEach(proj => {
+      proj.gallery.forEach(img => {
+        if (img.isVideo && img.videoUrl) {
+          urls.push(img.videoUrl);
+        }
+      });
+    });
+    
+    if (urls.length === 0) {
+      alert("No YouTube URLs found in your projects.");
+      return;
+    }
+    
+    const blob = new Blob([urls.join('\n')], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'urls.txt';
+    a.click();
+  };
+
+  const downloadScript = () => {
+    const scriptContent = `import sys\nimport subprocess\nimport os\nimport re\n\ndef extract_video_id(url):\n    match = re.search(r"(?:v=|\\\\/)([0-9A-Za-z_-]{11}).*", url)\n    return match.group(1) if match else None\n\ndef process_videos(file_path):\n    with open(file_path, 'r') as f:\n        urls = [line.strip() for line in f if line.strip()]\n        \n    os.makedirs('gifs', exist_ok=True)\n    \n    for url in urls:\n        video_id = extract_video_id(url)\n        if not video_id:\n            print(f"Could not extract video ID from {url}")\n            continue\n            \n        gif_path = f"gifs/{video_id}.gif"\n        if os.path.exists(gif_path):\n            print(f"Skipping {gif_path}, already exists.")\n            continue\n            \n        print(f"Processing {url} -> {gif_path}")\n        \n        temp_video = f"temp_{video_id}.mp4"\n        cmd_download = [\n            "yt-dlp",\n            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",\n            "--download-sections", "*0-10",\n            "-o", temp_video,\n            url\n        ]\n        \n        try:\n            subprocess.run(cmd_download, check=True)\n            \n            cmd_gif = [\n                "ffmpeg",\n                "-y",\n                "-i", temp_video,\n                "-vf", "fps=30,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",\n                "-loop", "0",\n                gif_path\n            ]\n            subprocess.run(cmd_gif, check=True)\n            \n            os.remove(temp_video)\n            print(f"Successfully created {gif_path}")\n            \n        except subprocess.CalledProcessError as e:\n            print(f"Error processing {url}: {e}")\n            if os.path.exists(temp_video):\n                os.remove(temp_video)\n\nif __name__ == "__main__":\n    process_videos("urls.txt")\n`;
+    const blob = new Blob([scriptContent], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'make_gifs.py';
+    a.click();
+  };
+
+  const handleGifUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploadingGifs(true);
+    try {
+      let uploadedCount = 0;
+      const newProjects = JSON.parse(JSON.stringify(localProjects));
+      
+      for (const file of files) {
+        const fileNameMatch = file.name.match(/^([0-9A-Za-z_-]{11})\.gif$/);
+        if (!fileNameMatch) continue;
+        const ytId = fileNameMatch[1];
+        
+        const url = await uploadFileWithChunks(file);
+        
+        newProjects.forEach((proj: any) => {
+          proj.gallery.forEach((img: any) => {
+            if (img.isVideo && img.videoUrl) {
+              let currentYtId = null;
+              try {
+                const urlObj = new URL(img.videoUrl);
+                if (urlObj.hostname.includes("youtube.com")) {
+                  currentYtId = urlObj.searchParams.get("v") || "";
+                } else if (urlObj.hostname.includes("youtu.be")) {
+                  currentYtId = urlObj.pathname.slice(1);
+                }
+              } catch(e) {}
+              
+              if (currentYtId === ytId) {
+                img.url = url;
+                uploadedCount++;
+              }
+            }
+          });
+        });
+      }
+      
+      setLocalProjects(newProjects);
+      alert(`Successfully uploaded and linked ${uploadedCount} GIF thumbnails! Please click "Save Changes" to persist.`);
+    } catch (err) {
+      alert("Error uploading GIFs: " + String(err));
+    } finally {
+      setUploadingGifs(false);
+      e.target.value = "";
+    }
   };
 
   const updateImageField = (projectId: string, imageIndex: number, field: "caption" | "videoUrl" | "fileName" | "processInfoHtml", value: string) => {
@@ -873,6 +979,49 @@ export function AdminPanel() {
               </div>
 
               <div className="pt-6 border-t border-slate-200">
+                <h3 className="text-sm font-bold text-slate-900 mb-2">Gif Prep & Auto-Thumbnail</h3>
+                <p className="text-xs text-slate-500 mb-4">Export your YouTube links, run a local Python script to generate 10s GIF thumbnails, and upload them here to auto-link them to your videos.</p>
+                
+                <div className="flex flex-col space-y-4">
+                  <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Step 1: Download Links & Script</h4>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={downloadUrls}
+                        className="bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-slate-50 transition shadow-sm"
+                      >
+                        Download urls.txt
+                      </button>
+                      <button 
+                        onClick={downloadScript}
+                        className="bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-slate-50 transition shadow-sm"
+                      >
+                        Download make_gifs.py
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+                      Requires <code>python</code>, <code>yt-dlp</code>, and <code>ffmpeg</code> installed on your system. Run <code>python make_gifs.py</code> in the same folder as <code>urls.txt</code> to generate the GIFs locally.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Step 2: Upload Generated GIFs</h4>
+                    <label className={`cursor-pointer ${uploadingGifs ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 py-1.5 rounded-md text-xs font-medium inline-block transition shadow-sm`}>
+                      {uploadingGifs ? "Uploading & Linking..." : "Select GIFs from 'gifs' folder"}
+                      <input 
+                        type="file" 
+                        multiple
+                        accept=".gif" 
+                        className="hidden" 
+                        disabled={uploadingGifs}
+                        onChange={handleGifUpload} 
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-200">
                 <h3 className="text-sm font-bold text-slate-900 mb-2">Data Management</h3>
                 <p className="text-xs text-slate-500 mb-4">Restore your portfolio data from a downloaded JSON backup file.</p>
                 
@@ -890,9 +1039,31 @@ export function AdminPanel() {
                       reader.onload = (event) => {
                         try {
                           const data = JSON.parse(event.target?.result as string);
-                          if (data.PROJECTS) setLocalProjects(data.PROJECTS);
-                          if (data.ABOUT) setLocalAbout(data.ABOUT);
-                          if (data.SIDEBAR) setLocalSidebar(data.SIDEBAR);
+                          if (data.PROJECTS) {
+                            setLocalProjects((prev: any[]) => {
+                              const merged = [...prev];
+                              data.PROJECTS.forEach((incomingProj: any) => {
+                                const idx = merged.findIndex(p => p.id === incomingProj.id);
+                                if (idx !== -1) merged[idx] = { ...merged[idx], ...incomingProj };
+                                else merged.push(incomingProj);
+                              });
+                              return merged;
+                            });
+                          }
+                          if (data.ABOUT) {
+                            setLocalAbout((prev: any) => ({ ...prev, ...data.ABOUT }));
+                          }
+                          if (data.SIDEBAR) {
+                            setLocalSidebar((prev: any[]) => {
+                              const merged = [...prev];
+                              data.SIDEBAR.forEach((incomingLink: any) => {
+                                const idx = merged.findIndex(l => l.id === incomingLink.id);
+                                if (idx !== -1) merged[idx] = { ...merged[idx], ...incomingLink };
+                                else merged.push(incomingLink);
+                              });
+                              return merged;
+                            });
+                          }
                           alert("Data imported successfully! Please review the changes and click 'Save Changes' to apply them.");
                         } catch (err) {
                           alert("Failed to parse JSON file.");
@@ -903,6 +1074,128 @@ export function AdminPanel() {
                     }} 
                   />
                 </label>
+
+                <div className="mt-6">
+                  <label className="flex items-center space-x-2">
+                    <input 
+                      type="checkbox" 
+                      checked={localAbout.autoBackupsEnabled !== false}
+                      onChange={(e) => setLocalAbout({ ...localAbout, autoBackupsEnabled: e.target.checked })}
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">Enable automatic backups (run on save)</span>
+                  </label>
+                </div>
+
+                <div className="mt-4 max-w-[200px]">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Max Retained Backups</label>
+                  <input 
+                    type="number" 
+                    value={localAbout.maxBackups || 30}
+                    onChange={(e) => setLocalAbout({ ...localAbout, maxBackups: parseInt(e.target.value) || 30 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    min="1"
+                  />
+                </div>
+
+                <div className="mt-8 border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                    <h4 className="text-sm font-bold text-slate-700">Backup History</h4>
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(getApiUrl("/api/backups"), { 
+                            method: "POST", 
+                            headers: { "Authorization": `Bearer ${token}` } 
+                          });
+                          if (res.ok) {
+                            alert("Backup created successfully!");
+                            fetchBackups();
+                          }
+                        } catch (err) {
+                          alert("Failed to create backup.");
+                        }
+                      }} 
+                      className="text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition"
+                    >
+                      Create Backup Now
+                    </button>
+                  </div>
+                  <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                    {loadingBackups ? (
+                      <div className="p-4 text-center text-sm text-slate-500">Loading backups...</div>
+                    ) : backupsList.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-slate-500">No backups found.</div>
+                    ) : (
+                      backupsList.map(backup => (
+                        <div key={backup.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition">
+                          <div>
+                            <div className="text-sm font-medium text-slate-800">{new Date(backup.timestamp).toLocaleString()}</div>
+                            <div className="text-xs text-slate-500">{backup.id}</div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button 
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(getApiUrl(`/api/backups/${backup.id}`), { headers: { "Authorization": `Bearer ${token}` } });
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                    const a = document.createElement('a');
+                                    a.href = URL.createObjectURL(blob);
+                                    a.download = backup.id;
+                                    a.click();
+                                  }
+                                } catch (e) {
+                                  alert("Failed to download backup.");
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 transition" title="Download"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                if (confirm("Are you sure you want to restore this backup? This will overwrite your current settings, projects, and about info. You must click 'Save Changes' after restoring to persist them.")) {
+                                  try {
+                                    const res = await fetch(getApiUrl(`/api/backups/${backup.id}`), { headers: { "Authorization": `Bearer ${token}` } });
+                                    if (res.ok) {
+                                      const data = await res.json();
+                                      if (data.PROJECTS) setLocalProjects(data.PROJECTS);
+                                      if (data.ABOUT) setLocalAbout(data.ABOUT);
+                                      if (data.SIDEBAR) setLocalSidebar(data.SIDEBAR);
+                                      alert("Data restored successfully! Please review the changes and click 'Save Changes' to apply them.");
+                                    }
+                                  } catch (e) {
+                                    alert("Failed to load backup data.");
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-green-600 transition" title="Restore"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                if (confirm("Delete this backup forever?")) {
+                                  try {
+                                    const res = await fetch(getApiUrl(`/api/backups/${backup.id}`), { method: "DELETE", headers: { "Authorization": `Bearer ${token}` } });
+                                    if (res.ok) fetchBackups();
+                                  } catch (e) {
+                                    alert("Failed to delete backup.");
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-red-600 transition" title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -198,6 +198,59 @@ async function startServer() {
     }
   });
 
+  const BACKUPS_DIR = path.join(process.cwd(), "src/backups");
+
+  app.get("/api/backups", requireAuth, (req, res) => {
+    try {
+      if (!fs.existsSync(BACKUPS_DIR)) return res.json({ success: true, backups: [] });
+      const files = fs.readdirSync(BACKUPS_DIR).filter(f => f.endsWith('.json'));
+      const backups = files.map(f => ({
+        id: f,
+        timestamp: fs.statSync(path.join(BACKUPS_DIR, f)).mtimeMs
+      })).sort((a, b) => b.timestamp - a.timestamp);
+      res.json({ success: true, backups });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to list backups" });
+    }
+  });
+
+  app.get("/api/backups/:id", requireAuth, (req, res) => {
+    try {
+      const backupPath = path.join(BACKUPS_DIR, path.basename(req.params.id));
+      if (!fs.existsSync(backupPath)) return res.status(404).json({ error: "Not found" });
+      const data = fs.readFileSync(backupPath, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (e) {
+      res.status(500).json({ error: "Failed to read backup" });
+    }
+  });
+
+  app.delete("/api/backups/:id", requireAuth, (req, res) => {
+    try {
+      const backupPath = path.join(BACKUPS_DIR, path.basename(req.params.id));
+      if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to delete backup" });
+    }
+  });
+
+  app.post("/api/backups", requireAuth, (req, res) => {
+    try {
+      const dataPath = path.join(process.cwd(), "src/data.json");
+      if (!fs.existsSync(dataPath)) return res.status(404).json({ error: "No data to backup" });
+      if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+      
+      const currentData = fs.readFileSync(dataPath, "utf-8");
+      const newBackupId = `backup_${Date.now()}.json`;
+      fs.writeFileSync(path.join(BACKUPS_DIR, newBackupId), currentData);
+      
+      res.json({ success: true, backup: { id: newBackupId, timestamp: Date.now() } });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to create backup" });
+    }
+  });
+
   const dataChunks = new Map<string, string[]>();
 
   app.post("/api/data", requireAuth, async (req, res) => {
@@ -224,6 +277,41 @@ async function startServer() {
       const dataPath = path.join(process.cwd(), "src/data.json");
       const contentString = JSON.stringify(req.body, null, 2);
       fs.writeFileSync(dataPath, contentString);
+      
+      // Auto Backup Logic
+      if (req.body.ABOUT?.autoBackupsEnabled !== false) {
+        try {
+          const BACKUPS_DIR = path.join(process.cwd(), "src/backups");
+          if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+          
+          const files = fs.readdirSync(BACKUPS_DIR).filter(f => f.endsWith('.json'));
+          const backups = files.map(f => ({ id: f, time: fs.statSync(path.join(BACKUPS_DIR, f)).mtimeMs })).sort((a, b) => b.time - a.time);
+          
+          let shouldBackup = true;
+          if (backups.length > 0) {
+            const latest = backups[0];
+            if (Date.now() - latest.time < 24 * 60 * 60 * 1000) {
+              shouldBackup = false;
+            } else {
+              const latestData = fs.readFileSync(path.join(BACKUPS_DIR, latest.id), "utf-8");
+              if (latestData === contentString) shouldBackup = false;
+            }
+          }
+          if (shouldBackup) {
+            fs.writeFileSync(path.join(BACKUPS_DIR, `backup_${Date.now()}.json`), contentString);
+          }
+          
+          const maxBackups = req.body.ABOUT?.maxBackups || 30;
+          const updatedFiles = fs.readdirSync(BACKUPS_DIR).filter(f => f.endsWith('.json'));
+          if (updatedFiles.length > maxBackups) {
+            const toDelete = updatedFiles.map(f => ({ id: f, time: fs.statSync(path.join(BACKUPS_DIR, f)).mtimeMs }))
+              .sort((a, b) => b.time - a.time).slice(maxBackups);
+            for (const b of toDelete) fs.unlinkSync(path.join(BACKUPS_DIR, b.id));
+          }
+        } catch (backupErr) {
+          console.error("Auto backup failed:", backupErr);
+        }
+      }
       
       // Also push directly to GitHub so Netlify triggers a build and is kept in sync
       const githubSuccess = await pushDataToGithub(contentString);

@@ -135,6 +135,57 @@ router.get("/data", async (req, res) => {
   }
 });
 
+router.get("/backups", requireAuth, async (req, res) => {
+  try {
+    const backupStore = getStore("backups");
+    const { blobs } = await backupStore.list();
+    const backups = blobs.map(b => ({
+      id: b.key,
+      timestamp: parseInt(b.key.split('_')[1]) || 0
+    })).sort((a, b) => b.timestamp - a.timestamp);
+    res.json({ success: true, backups });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to list backups" });
+  }
+});
+
+router.get("/backups/:id", requireAuth, async (req, res) => {
+  try {
+    const backupStore = getStore("backups");
+    const data = await backupStore.get(req.params.id, { type: "json" });
+    if (!data) return res.status(404).json({ error: "Not found" });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to read backup" });
+  }
+});
+
+router.delete("/backups/:id", requireAuth, async (req, res) => {
+  try {
+    const backupStore = getStore("backups");
+    await backupStore.delete(req.params.id);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to delete backup" });
+  }
+});
+
+router.post("/backups", requireAuth, async (req, res) => {
+  try {
+    const dataStore = getStore("data");
+    const currentData = await dataStore.get("data.json", { type: "json" });
+    if (!currentData) return res.status(404).json({ error: "No data to backup" });
+    
+    const backupStore = getStore("backups");
+    const newBackupId = `backup_${Date.now()}.json`;
+    await backupStore.setJSON(newBackupId, currentData);
+    
+    res.json({ success: true, backup: { id: newBackupId, timestamp: Date.now() } });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to create backup" });
+  }
+});
+
 router.post("/data", requireAuth, async (req, res) => {
   try {
     if (req.body && req.body.chunkIndex !== undefined) {
@@ -162,6 +213,45 @@ router.post("/data", requireAuth, async (req, res) => {
 
     const dataStore = getStore("data");
     await dataStore.setJSON("data.json", req.body);
+    
+    // Auto Backup Logic
+    if (req.body.ABOUT?.autoBackupsEnabled !== false) {
+      try {
+        const backupStore = getStore("backups");
+        const { blobs } = await backupStore.list();
+        const backups = blobs.map(b => ({
+          id: b.key,
+          time: parseInt(b.key.split('_')[1]) || 0
+        })).sort((a, b) => b.time - a.time);
+
+        let shouldBackup = true;
+        if (backups.length > 0) {
+          const latest = backups[0];
+          if (Date.now() - latest.time < 24 * 60 * 60 * 1000) {
+            shouldBackup = false;
+          } else {
+            const latestData = await backupStore.get(latest.id, { type: "text" });
+            if (latestData === JSON.stringify(req.body)) shouldBackup = false;
+          }
+        }
+
+        if (shouldBackup) {
+          const newBackupId = `backup_${Date.now()}.json`;
+          await backupStore.setJSON(newBackupId, req.body);
+          backups.unshift({ id: newBackupId, time: Date.now() });
+        }
+
+        const maxBackups = req.body.ABOUT?.maxBackups || 30;
+        if (backups.length > maxBackups) {
+          for (const b of backups.slice(maxBackups)) {
+            await backupStore.delete(b.id);
+          }
+        }
+      } catch (backupErr) {
+        console.error("Auto backup failed:", backupErr);
+      }
+    }
+    
     res.json({ success: true, blobed: true });
   } catch (e: any) {
     console.error(e);

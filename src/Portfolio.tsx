@@ -416,7 +416,7 @@ export default function Portfolio() {
   };
 
   return (
-    <div className={`theme-transition h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-hidden antialiased select-none`}>
+    <div className={`h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-hidden antialiased select-none`}>
       
       {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
       {isAboutMeOpen && (
@@ -568,12 +568,12 @@ export default function Portfolio() {
         dragControls={dragControls}
         dragMomentum={false}
         id="finder-window"
-        className={`theme-transition w-full max-w-[1550px] h-full sm:h-[88vh] sm:min-h-[720px] ${styles.windowBg} rounded-none sm:rounded-[28px] overflow-hidden flex flex-col relative shadow-none sm:shadow-[0_30px_90px_-15px_rgba(0,0,0,0.4)]`}
+        className={`w-full max-w-[1550px] h-full sm:h-[88vh] sm:min-h-[720px] ${styles.windowBg} rounded-none sm:rounded-[28px] overflow-hidden flex flex-col relative shadow-none sm:shadow-[0_30px_90px_-15px_rgba(0,0,0,0.4)]`}
       >
         {/* Header 1: macOS traffic lights and centered directory label */}
         <div 
           onPointerDown={(e) => dragControls.start(e)}
-          className={`cursor-grab active:cursor-grabbing theme-transition ${styles.titleBarBg} h-11 px-4 flex items-center justify-between shrink-0 relative`}
+          className={`cursor-grab active:cursor-grabbing ${styles.titleBarBg} h-11 px-4 flex items-center justify-between shrink-0 relative`}
         >
           
           {/* Traffic red/yellow/green visual lights */}
@@ -636,7 +636,7 @@ export default function Portfolio() {
         <div className={`flex-1 flex overflow-hidden min-h-0 ${isDark ? "bg-[#2a2a2c]" : "bg-white"}`}>
           
           {/* A. Dynamic sidebar layout list */}
-          <aside className={`theme-transition hidden md:flex w-64 shrink-0 ${styles.sidebarBg} p-4 flex-col space-y-5 select-none overflow-y-auto`}>
+          <aside className={`hidden md:flex w-64 shrink-0 ${styles.sidebarBg} p-4 flex-col space-y-5 select-none overflow-y-auto`}>
             
             {/* 1. Overview and Biography file item index shortcuts */}
             <div>
@@ -749,7 +749,7 @@ export default function Portfolio() {
           </aside>
 
           {/* B. Center workspace directory canvas */}
-          <main className={`theme-transition flex-1 overflow-y-auto p-2.5 relative min-w-0 flex flex-col justify-start ${styles.mainCanvasBg} select-none`}>
+          <main className={`flex-1 overflow-y-auto p-2.5 relative min-w-0 flex flex-col justify-start ${styles.mainCanvasBg} select-none`}>
             
             {activeSelection === "overview" ? (
               // ==================== STATE 1: TOP-LEVEL OVERVIEW VIEW ====================
@@ -970,7 +970,7 @@ export default function Portfolio() {
         </div>
 
         {/* Header 4: Standard bottom status bar details */}
-        <div className={`theme-transition ${styles.statusBarBg} py-3.5 px-6 flex flex-row items-center justify-between gap-3 shrink-0 text-xs sm:text-[13px] select-none shadow-inner`}>
+        <div className={`${styles.statusBarBg} py-3.5 px-6 flex flex-row items-center justify-between gap-3 shrink-0 text-xs sm:text-[13px] select-none shadow-inner`}>
           <div className="hidden sm:flex items-center space-x-2 min-w-0 max-w-full">
             <HardDrive className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
             <span className="font-medium tracking-wide truncate whitespace-nowrap">
