@@ -290,7 +290,11 @@ async function startServer() {
           let shouldBackup = true;
           if (backups.length > 0) {
             const latest = backups[0];
-            if (Date.now() - latest.time < 24 * 60 * 60 * 1000) {
+            const intervalHrs = req.body.ABOUT?.autoBackupIntervalHrs !== undefined ? req.body.ABOUT.autoBackupIntervalHrs : 24;
+            
+            if (intervalHrs === 0) {
+              shouldBackup = true; // Every save
+            } else if (Date.now() - latest.time < intervalHrs * 60 * 60 * 1000) {
               shouldBackup = false;
             } else {
               const latestData = fs.readFileSync(path.join(BACKUPS_DIR, latest.id), "utf-8");

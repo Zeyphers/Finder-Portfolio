@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { FolderIcon } from "./components/FolderIcon";
 import { TextEditModal } from "./components/TextEditModal";
 import { MemoryGameApp } from "./components/MemoryGameApp";
@@ -254,6 +254,24 @@ export default function Portfolio() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxZoom, setLightboxZoom] = useState<number>(1);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
+  
+  // Lightbox idle state to auto-hide controls
+  const [isLightboxIdle, setIsLightboxIdle] = useState(false);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetLightboxIdle = () => {
+    setIsLightboxIdle(false);
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => setIsLightboxIdle(true), 1000);
+  };
+
+  useEffect(() => {
+    if (lightboxIndex !== null) {
+      resetLightboxIdle();
+    } else {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    }
+  }, [lightboxIndex]);
 
   // Reset zoom and panning when lightbox index changes
   useEffect(() => {
@@ -438,9 +456,11 @@ export default function Portfolio() {
         <div 
           className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center animate-fade-in overflow-y-auto osx-scrollbar"
           onClick={closeLightbox}
+          onMouseMove={resetLightboxIdle}
+          onKeyDown={resetLightboxIdle}
         >
           {/* Lightbox Toolbar Header - Fixed at top */}
-          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 sticky top-0 z-50" onClick={e => e.stopPropagation()}>
+          <div className={`w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 sticky top-0 z-50 transition-opacity duration-500 ${isLightboxIdle ? 'opacity-0' : 'opacity-100'}`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center space-x-3">
               <button 
                 onClick={closeLightbox}
@@ -473,8 +493,9 @@ export default function Portfolio() {
                   const prev = (lightboxIndex - 1 + selectedProject.gallery.length) % selectedProject.gallery.length;
                   setLightboxIndex(prev);
                   setLightboxZoom(1);
+                  resetLightboxIdle();
                 }}
-                className="absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
+                className={`absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition-all duration-500 ${isLightboxIdle ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
               >
                 <ChevronLeft className="w-6 h-6" />
               </button>
@@ -500,7 +521,7 @@ export default function Portfolio() {
                   <iframe 
                     src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
                     title={selectedProject.gallery[lightboxIndex].caption}
-                    className="w-full h-full shadow-2xl border-0"
+                    className={`w-full h-full shadow-2xl border-0 ${isLightboxIdle ? 'pointer-events-none' : ''}`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   ></iframe>
@@ -524,8 +545,9 @@ export default function Portfolio() {
                   const next = (lightboxIndex + 1) % selectedProject.gallery.length;
                   setLightboxIndex(next);
                   setLightboxZoom(1);
+                  resetLightboxIdle();
                 }}
-                className="absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
+                className={`absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition-all duration-500 ${isLightboxIdle ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
               >
                 <ChevronRight className="w-6 h-6" />
               </button>
@@ -533,7 +555,7 @@ export default function Portfolio() {
 
             {/* Caption text footer */}
             <div 
-              className="w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 shrink-0 select-text mb-4"
+              className={`w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 shrink-0 select-text mb-4 transition-opacity duration-500 ${isLightboxIdle ? 'opacity-0' : 'opacity-100'}`}
               onClick={e => e.stopPropagation()}
             >
               <p className="font-sans leading-relaxed italic">{selectedProject.gallery[lightboxIndex].caption}</p>
@@ -541,7 +563,7 @@ export default function Portfolio() {
 
             {/* Scroll Hint */}
             {selectedProject.gallery[lightboxIndex].processInfoHtml && selectedProject.gallery[lightboxIndex].processInfoHtml !== '<p><br></p>' && (
-              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center text-white/70 animate-bounce">
+              <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center text-white/70 animate-bounce transition-opacity duration-500 ${isLightboxIdle ? 'opacity-0' : 'opacity-100'}`}>
                 <span className="text-xs uppercase tracking-widest mb-1 font-semibold drop-shadow-md">Scroll to see process</span>
                 <ChevronDown className="w-5 h-5 drop-shadow-md" />
               </div>

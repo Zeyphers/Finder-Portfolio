@@ -36,6 +36,12 @@
       "tags": ["Test"],
       "gallery": [
         {
+          "url": "https://img.youtube.com/vi/V4YlwY-5zkY/maxresdefault.jpg",
+          "caption": "Test Video",
+          "isVideo": true,
+          "videoUrl": "https://youtu.be/V4YlwY-5zkY"
+        },
+        {
           "url": "https://picsum.photos/seed/test1/800/600",
           "caption": "A test image with process info",
           "processInfoHtml": "<h1>Process Overview</h1><p>Here is some <strong>test process text</strong>.</p><p><img src=\"https://picsum.photos/seed/test2/400/300\" alt=\"Inline test\" /></p><ul><li>Step 1: Ideation</li><li>Step 2: Execution</li></ul>"

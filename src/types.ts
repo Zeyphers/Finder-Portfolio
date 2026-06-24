@@ -49,6 +49,7 @@ export interface AboutInfo {
   signoff: string;
   tabIconUrl?: string;
   disableContactCooldown?: boolean;
+  autoBackupIntervalHrs?: number;
 }
 
 export interface SidebarItem {

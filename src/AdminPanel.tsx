@@ -1166,19 +1166,33 @@ if __name__ == "__main__":
                       onChange={(e) => setLocalAbout({ ...localAbout, autoBackupsEnabled: e.target.checked })}
                       className="rounded text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-slate-700">Enable automatic backups (run on save)</span>
+                    <span className="text-sm text-slate-700">Enable automatic backups</span>
                   </label>
                 </div>
 
-                <div className="mt-4 max-w-[200px]">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Max Retained Backups</label>
-                  <input 
-                    type="number" 
-                    value={localAbout.maxBackups || 30}
-                    onChange={(e) => setLocalAbout({ ...localAbout, maxBackups: parseInt(e.target.value) || 30 })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="1"
-                  />
+                <div className="mt-4 flex gap-4">
+                  <div className="max-w-[200px]">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Backup Interval (Hours)</label>
+                    <input 
+                      type="number" 
+                      value={localAbout.autoBackupIntervalHrs !== undefined ? localAbout.autoBackupIntervalHrs : 24}
+                      onChange={(e) => setLocalAbout({ ...localAbout, autoBackupIntervalHrs: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="0"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">0 means backup on every save.</p>
+                  </div>
+
+                  <div className="max-w-[200px]">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Max Retained Backups</label>
+                    <input 
+                      type="number" 
+                      value={localAbout.maxBackups || 30}
+                      onChange={(e) => setLocalAbout({ ...localAbout, maxBackups: parseInt(e.target.value) || 30 })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="1"
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-8 border border-slate-200 rounded-lg overflow-hidden">
