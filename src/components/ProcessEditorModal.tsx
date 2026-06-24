@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import BlotFormatter from 'quill-blot-formatter';
 
 // Ensure window.Quill is set for modules that require it
 if (typeof window !== 'undefined') {
   (window as any).Quill = Quill;
 }
-import ImageResize from 'quill-image-resize-module-react';
 
 // Register the image resize module
-Quill.register('modules/imageResize', ImageResize);
+Quill.register('modules/blotFormatter', BlotFormatter);
 
 interface ProcessEditorModalProps {
   initialValue: string;
@@ -42,10 +42,7 @@ export function ProcessEditorModal({ initialValue, onSave, onClose }: ProcessEdi
                   ['link', 'image', 'video'],
                   ['clean']
                 ],
-                imageResize: {
-                  parchment: Quill.import('parchment'),
-                  modules: ['Resize', 'DisplaySize']
-                }
+                blotFormatter: {}
               }}
             />
           </div>
