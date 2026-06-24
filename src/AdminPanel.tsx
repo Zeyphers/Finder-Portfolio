@@ -238,7 +238,7 @@ export function AdminPanel() {
       if (p.id === projectId) {
         return {
           ...p,
-          gallery: [...p.gallery, { url: "https://img.youtube.com/vi/gB9mSyxdhyQ/maxresdefault.jpg", caption: "New Video", isVideo: true, videoUrl: "https://www.youtube.com/watch?v=gB9mSyxdhyQ" }]
+          gallery: [...p.gallery, { url: "https://img.youtube.com/vi/gB9mSyxdhyQ/maxresdefault.jpg", caption: "New Video", isVideo: true, videoUrl: "" }]
         };
       }
       return p;
@@ -376,7 +376,85 @@ export function AdminPanel() {
   };
 
   const downloadScript = () => {
-    const scriptContent = `import sys\nimport subprocess\nimport os\nimport re\nimport json\n\ndef extract_video_id(url):\n    match = re.search(r"(?:v=|\\\\/)([0-9A-Za-z_-]{11}).*", url)\n    return match.group(1) if match else None\n\ndef process_videos(file_path):\n    with open(file_path, 'r') as f:\n        urls = [line.strip() for line in f if line.strip()]\n        \n    os.makedirs('gifs', exist_ok=True)\n    \n    for url in urls:\n        video_id = extract_video_id(url)\n        if not video_id:\n            print(f"Could not extract video ID from {url}")\n            continue\n            \n        try:\n            info_cmd = ["yt-dlp", "--dump-json", url]\n            result = subprocess.run(info_cmd, capture_output=True, text=True, check=True)\n            info = json.loads(result.stdout)\n            title = info.get('title', video_id)\n            safe_title = re.sub(r'[^a-zA-Z0-9]', '_', title)\n        except Exception as e:\n            print(f"Could not fetch title for {url}: {e}")\n            safe_title = video_id\n            \n        gif_path = f"gifs/{video_id}___{safe_title}.gif"\n        if os.path.exists(gif_path):\n            print(f"Skipping {gif_path}, already exists.")\n            continue\n            \n        print(f"Processing {url} -> {gif_path}")\n        \n        temp_video = f"temp_{video_id}.mp4"\n        cmd_download = [\n            "yt-dlp",\n            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",\n            "--download-sections", "*0-10",\n            "-o", temp_video,\n            url\n        ]\n        \n        try:\n            subprocess.run(cmd_download, check=True)\n            \n            cmd_gif = [\n                "ffmpeg",\n                "-y",\n                "-i", temp_video,\n                "-vf", "fps=30,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",\n                "-loop", "0",\n                gif_path\n            ]\n            subprocess.run(cmd_gif, check=True)\n            \n            os.remove(temp_video)\n            print(f"Successfully created {gif_path}")\n            \n        except subprocess.CalledProcessError as e:\n            print(f"Error processing {url}: {e}")\n            if os.path.exists(temp_video):\n                os.remove(temp_video)\n\nif __name__ == "__main__":\n    process_videos("urls.txt")\n`;
+    const scriptContent = `import sys
+import subprocess
+import os
+import re
+import json
+
+YTDLP  = r"C:\\Users\\jacob.szczepaniak\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\yt-dlp.exe"
+FFMPEG = r"C:\\Users\\jacob.szczepaniak\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\ffmpeg.exe"
+
+def extract_video_id(url):
+    match = re.search(r"(?:v=|youtu\\.be/)([0-9A-Za-z_-]{11})", url)
+    return match.group(1) if match else None
+
+def process_videos(file_path):
+    with open(file_path, 'r') as f:
+        urls = [line.strip() for line in f if line.strip()]
+    
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    gifs_dir = os.path.join(script_dir, 'gifs')
+    os.makedirs(gifs_dir, exist_ok=True)
+    
+    for url in urls:
+        video_id = extract_video_id(url)
+        if not video_id:
+            print(f"Could not extract video ID from {url}")
+            continue
+            
+        try:
+            info_cmd = [YTDLP, "--dump-json", url]
+            result = subprocess.run(info_cmd, capture_output=True, text=True, check=True)
+            info = json.loads(result.stdout)
+            title = info.get('title', video_id)
+            safe_title = re.sub(r'[^a-zA-Z0-9]', '_', title)
+        except Exception as e:
+            print(f"Could not fetch title for {url}: {e}")
+            safe_title = video_id
+            
+        gif_path = os.path.join(gifs_dir, f"{video_id}___{safe_title}.gif")
+        if os.path.exists(gif_path):
+            print(f"Skipping {gif_path}, already exists.")
+            continue
+            
+        print(f"Processing {url} -> {gif_path}")
+        
+        temp_video = os.path.join(script_dir, f"temp_{video_id}.mp4")
+        cmd_download = [
+            YTDLP,
+            "--ffmpeg-location", FFMPEG,
+            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+            "--download-sections", "*0-10",
+            "-o", temp_video,
+            url
+        ]
+        
+        try:
+            subprocess.run(cmd_download, check=True)
+            
+            cmd_gif = [
+                FFMPEG,
+                "-y",
+                "-i", temp_video,
+                "-vf", "fps=15,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5",
+                "-loop", "0",
+                gif_path
+            ]
+            subprocess.run(cmd_gif, check=True)
+            
+            os.remove(temp_video)
+            print(f"Successfully created {gif_path}")
+            
+        except subprocess.CalledProcessError as e:
+            print(f"Error processing {url}: {e}")
+            if os.path.exists(temp_video):
+                os.remove(temp_video)
+
+if __name__ == "__main__":
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    process_videos(os.path.join(script_dir, "urls.txt"))
+`;
     const blob = new Blob([scriptContent], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
