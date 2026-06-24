@@ -113,32 +113,81 @@ export function AdminPanel() {
       const currentRemoteData = await currentRemoteDataRes.json();
       
       console.log("Saving to:", getApiUrl("/api/data"));
-      const res = await fetch(getApiUrl("/api/data"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          PROJECTS: localProjects, 
-          EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS,
-          ABOUT: localAbout,
-          SIDEBAR: localSidebar
-        })
-      });
-      console.log("Save response status:", res.status);
-      if (res.ok) {
-        const resultData = await res.json();
-        console.log("Save result:", resultData);
-        await refreshData();
-        setSaveSuccess(true);
-        setTimeout(() => {
-          setSaveSuccess(false);
-        }, 3000);
+      
+      const payloadObj = { 
+        PROJECTS: localProjects, 
+        EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS,
+        ABOUT: localAbout,
+        SIDEBAR: localSidebar
+      };
+      const payloadString = JSON.stringify(payloadObj);
+      const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunks
+      
+      const totalChunks = Math.ceil(payloadString.length / CHUNK_SIZE);
+      
+      if (totalChunks > 1) {
+        console.log(`Payload is large (${payloadString.length} chars), sending in ${totalChunks} chunks...`);
+        const fileId = "datajson_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+        let success = true;
+        
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const chunkStr = payloadString.slice(start, start + CHUNK_SIZE);
+          
+          const res = await fetch(getApiUrl("/api/data"), {
+            method: "POST",
+            headers: { 
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              chunkIndex: i,
+              totalChunks,
+              fileId,
+              chunkString: chunkStr
+            })
+          });
+          
+          if (!res.ok) {
+            success = false;
+            const errText = await res.text();
+            console.error(`Save error response for chunk ${i}:`, errText);
+            alert(`Failed to save data chunk ${i + 1}/${totalChunks}: ${errText}`);
+            break;
+          }
+        }
+        
+        if (success) {
+          console.log("All chunks saved successfully.");
+          await refreshData();
+          setSaveSuccess(true);
+          setTimeout(() => {
+            setSaveSuccess(false);
+          }, 3000);
+        }
       } else {
-        const errText = await res.text();
-        console.error("Save error response:", errText);
-        alert(`Failed to save data: ${errText}`);
+        const res = await fetch(getApiUrl("/api/data"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: payloadString
+        });
+        console.log("Save response status:", res.status);
+        if (res.ok) {
+          const resultData = await res.json();
+          console.log("Save result:", resultData);
+          await refreshData();
+          setSaveSuccess(true);
+          setTimeout(() => {
+            setSaveSuccess(false);
+          }, 3000);
+        } else {
+          const errText = await res.text();
+          console.error("Save error response:", errText);
+          alert(`Failed to save data: ${errText}`);
+        }
       }
     } catch (err: any) {
       console.error("Save Exception:", err);

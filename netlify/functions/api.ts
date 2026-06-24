@@ -137,6 +137,34 @@ router.get("/data", async (req, res) => {
 
 router.post("/data", requireAuth, async (req, res) => {
   try {
+    if (req.body && req.body.chunkIndex !== undefined) {
+      const { chunkIndex, totalChunks, fileId, chunkString } = req.body;
+      const chunkStore = getStore("chunks");
+      await chunkStore.set(`${fileId}_${chunkIndex}`, chunkString);
+
+      if (chunkIndex === totalChunks - 1) {
+        let fullString = "";
+        for (let i = 0; i < totalChunks; i++) {
+          const c = await chunkStore.get(`${fileId}_${i}`);
+          if (c) fullString += c;
+        }
+
+        const jsonData = JSON.parse(fullString);
+        
+        const dataStore = getStore("data");
+        await dataStore.setJSON("data.json", jsonData);
+        
+        // Cleanup
+        for (let i = 0; i < totalChunks; i++) {
+          chunkStore.delete(`${fileId}_${i}`).catch(() => {});
+        }
+        
+        return res.json({ success: true, blobed: true });
+      } else {
+        return res.json({ success: true, chunkReceived: true });
+      }
+    }
+
     const dataStore = getStore("data");
     await dataStore.setJSON("data.json", req.body);
     res.json({ success: true, blobed: true });
