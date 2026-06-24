@@ -63,7 +63,7 @@ const getYoutubeEmbedUrl = (url: string): string => {
   }
   
   if (videoId) {
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&enablejsapi=1&loop=1&playlist=${videoId}`;
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}`;
   }
   return url;
 };
@@ -460,7 +460,7 @@ export default function Portfolio() {
           onKeyDown={resetLightboxIdle}
         >
           {/* Lightbox Toolbar Header - Fixed at top */}
-          <div className={`w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 sticky top-0 z-50 transition-opacity duration-500 ${isLightboxIdle ? 'opacity-0' : 'opacity-100'}`} onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 sticky top-0 z-50" onClick={e => e.stopPropagation()}>
             <div className="flex items-center space-x-3">
               <button 
                 onClick={closeLightbox}
@@ -495,7 +495,7 @@ export default function Portfolio() {
                   setLightboxZoom(1);
                   resetLightboxIdle();
                 }}
-                className={`absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition-all duration-500 ${isLightboxIdle ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+                className="absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
               >
                 <ChevronLeft className="w-6 h-6" />
               </button>
@@ -521,7 +521,7 @@ export default function Portfolio() {
                   <iframe 
                     src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
                     title={selectedProject.gallery[lightboxIndex].caption}
-                    className={`w-full h-full shadow-2xl border-0 ${isLightboxIdle ? 'pointer-events-none' : ''}`}
+                    className="w-full h-full shadow-2xl border-0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   ></iframe>
@@ -547,7 +547,7 @@ export default function Portfolio() {
                   setLightboxZoom(1);
                   resetLightboxIdle();
                 }}
-                className={`absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition-all duration-500 ${isLightboxIdle ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+                className="absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
               >
                 <ChevronRight className="w-6 h-6" />
               </button>
@@ -555,7 +555,7 @@ export default function Portfolio() {
 
             {/* Caption text footer */}
             <div 
-              className={`w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 shrink-0 select-text mb-4 transition-opacity duration-500 ${isLightboxIdle ? 'opacity-0' : 'opacity-100'}`}
+              className="w-full max-w-3xl bg-black/65 backdrop-blur-md border border-white/5 py-4 px-6 rounded-xl text-center text-xs text-slate-200 shrink-0 select-text mb-4"
               onClick={e => e.stopPropagation()}
             >
               <p className="font-sans leading-relaxed italic">{selectedProject.gallery[lightboxIndex].caption}</p>
@@ -563,7 +563,7 @@ export default function Portfolio() {
 
             {/* Scroll Hint */}
             {selectedProject.gallery[lightboxIndex].processInfoHtml && selectedProject.gallery[lightboxIndex].processInfoHtml !== '<p><br></p>' && (
-              <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center text-white/70 animate-bounce transition-opacity duration-500 ${isLightboxIdle ? 'opacity-0' : 'opacity-100'}`}>
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center text-white/70 animate-bounce">
                 <span className="text-xs uppercase tracking-widest mb-1 font-semibold drop-shadow-md">Scroll to see process</span>
                 <ChevronDown className="w-5 h-5 drop-shadow-md" />
               </div>
