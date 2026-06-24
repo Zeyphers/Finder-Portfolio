@@ -63,7 +63,7 @@ const getYoutubeEmbedUrl = (url: string): string => {
   }
   
   if (videoId) {
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&enablejsapi=1`;
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&enablejsapi=1&loop=1&playlist=${videoId}`;
   }
   return url;
 };
@@ -214,35 +214,35 @@ export default function Portfolio() {
 
   const styles = useMemo(() => ({
     // Containers
-    outerBg: isDark ? "bg-[#1c1c1e] text-slate-200" : "bg-[#dedede] text-[#1f2937]",
-    windowBg: isDark ? "bg-[#2a2a2c] border border-white/10 shadow-[0_22px_55px_rgba(0,0,0,0.75)]" : "bg-[#fbfbfb] border border-black/15 shadow-[0_22px_55px_rgba(0,0,0,0.18)]",
-    titleBarBg: isDark ? "bg-[#3a3a3c] border-b border-black/35 text-slate-200" : "bg-[#ececed] border-b border-black/12 text-slate-700",
-    titleText: isDark ? "text-slate-300" : "text-slate-600",
-    toolbarBg: isDark ? "bg-[#323234] border-b border-black/45" : "bg-[#f5f5f7] border-b border-[#000000]/12",
-    sidebarBg: isDark ? "bg-[#18181a] border-r border-black/45 shadow-[4px_0_16px_rgba(0,0,0,0.3)] z-10 text-slate-300" : "bg-[#ececed] border-r border-black/15 shadow-[4px_0_16px_rgba(0,0,0,0.06)] z-10 text-slate-800",
-    mainCanvasBg: isDark ? "bg-[#2a2a2c] text-slate-100" : "bg-white text-slate-900",
-    statusBarBg: isDark ? "bg-[#2a2a2c] border-t border-black/35 text-slate-400" : "bg-[#f0f0f2] border-t border-black/10 text-slate-600",
+    outerBg: `transition-colors duration-500 ${isDark ? "bg-[#1c1c1e] text-slate-200" : "bg-[#dedede] text-[#1f2937]"}`,
+    windowBg: `transition-colors duration-500 ${isDark ? "bg-[#2a2a2c] border border-white/10 shadow-[0_22px_55px_rgba(0,0,0,0.75)]" : "bg-[#fbfbfb] border border-black/15 shadow-[0_22px_55px_rgba(0,0,0,0.18)]"}`,
+    titleBarBg: `transition-colors duration-500 ${isDark ? "bg-[#3a3a3c] border-b border-black/35 text-slate-200" : "bg-[#ececed] border-b border-black/12 text-slate-700"}`,
+    titleText: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-slate-600"}`,
+    toolbarBg: `transition-colors duration-500 ${isDark ? "bg-[#323234] border-b border-black/45" : "bg-[#f5f5f7] border-b border-[#000000]/12"}`,
+    sidebarBg: `transition-colors duration-500 ${isDark ? "bg-[#18181a] border-r border-black/45 shadow-[4px_0_16px_rgba(0,0,0,0.3)] z-10 text-slate-300" : "bg-[#ececed] border-r border-black/15 shadow-[4px_0_16px_rgba(0,0,0,0.06)] z-10 text-slate-800"}`,
+    mainCanvasBg: `transition-colors duration-500 ${isDark ? "bg-[#2a2a2c] text-slate-100" : "bg-white text-slate-900"}`,
+    statusBarBg: `transition-colors duration-500 ${isDark ? "bg-[#2a2a2c] border-t border-black/35 text-slate-400" : "bg-[#f0f0f2] border-t border-black/10 text-slate-600"}`,
     
     // Text elements
-    textPrimary: isDark ? "text-slate-100" : "text-slate-950",
-    textSecondary: isDark ? "text-slate-300" : "text-slate-800",
-    textMuted: isDark ? "text-slate-400" : "text-slate-500",
-    textMutedSubtle: isDark ? "text-slate-500" : "text-slate-400",
+    textPrimary: `transition-colors duration-500 ${isDark ? "text-slate-100" : "text-slate-950"}`,
+    textSecondary: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-slate-800"}`,
+    textMuted: `transition-colors duration-500 ${isDark ? "text-slate-400" : "text-slate-500"}`,
+    textMutedSubtle: `transition-colors duration-500 ${isDark ? "text-slate-500" : "text-slate-400"}`,
     
     // Buttons & Icons
-    sidebarSectionHeader: isDark ? "text-slate-500 font-bold" : "text-slate-400 font-extrabold",
-    sidebarButtonSelected: isDark ? "bg-[#3063d4] text-white" : "bg-[#1062fe] text-white shadow-xs",
-    sidebarButtonHover: isDark ? "text-slate-300" : "text-slate-700",
-    toolbarButton: isDark ? "bg-[#323234] hover:bg-[#3d3d40] text-slate-300 border border-[#4a4a4d]" : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-3xs",
-    toolbarToggleBg: isDark ? "bg-[#232325] border border-[#434346]" : "bg-slate-200/60 border border-slate-300",
-    toolbarToggleBtnSelected: isDark ? "bg-[#3e3e41] text-sky-400" : "bg-white text-[#1062fe] shadow-3xs",
-    toolbarToggleBtnHover: isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-505 hover:text-slate-800",
+    sidebarSectionHeader: `transition-colors duration-500 ${isDark ? "text-slate-500 font-bold" : "text-slate-400 font-extrabold"}`,
+    sidebarButtonSelected: `transition-colors duration-500 ${isDark ? "bg-[#3063d4] text-white" : "bg-[#1062fe] text-white shadow-xs"}`,
+    sidebarButtonHover: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-slate-700"}`,
+    toolbarButton: `transition-colors duration-500 ${isDark ? "bg-[#323234] hover:bg-[#3d3d40] text-slate-300 border border-[#4a4a4d]" : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-3xs"}`,
+    toolbarToggleBg: `transition-colors duration-500 ${isDark ? "bg-[#232325] border border-[#434346]" : "bg-slate-200/60 border border-slate-300"}`,
+    toolbarToggleBtnSelected: `transition-colors duration-500 ${isDark ? "bg-[#3e3e41] text-sky-400" : "bg-white text-[#1062fe] shadow-3xs"}`,
+    toolbarToggleBtnHover: `transition-colors duration-500 ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-505 hover:text-slate-800"}`,
     
     // Card & badges inside main workspace
-    cardBg: isDark ? "bg-black/15 border border-white/5" : "bg-[#f9f9fb] border border-black/8 shadow-2xs",
-    badgeBg: isDark ? "bg-sky-500/10 text-sky-400 border border-sky-400/20" : "bg-[#1062fe]/10 text-[#1062fe] border border-[#1062fe]/20",
-    badgeGreenBg: isDark ? "bg-emerald-500/10 text-emerald-400 border border-emerald-400/20" : "bg-emerald-600/10 text-emerald-600 border border-emerald-600/20",
-    badgeOrangeBg: isDark ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" : "bg-orange-600/10 text-orange-600 border border-orange-600/20",
+    cardBg: `transition-colors duration-500 ${isDark ? "bg-black/15 border border-white/5" : "bg-[#f9f9fb] border border-black/8 shadow-2xs"}`,
+    badgeBg: `transition-colors duration-500 ${isDark ? "bg-sky-500/10 text-sky-400 border border-sky-400/20" : "bg-[#1062fe]/10 text-[#1062fe] border border-[#1062fe]/20"}`,
+    badgeGreenBg: `transition-colors duration-500 ${isDark ? "bg-emerald-500/10 text-emerald-400 border border-emerald-400/20" : "bg-emerald-600/10 text-emerald-600 border border-emerald-600/20"}`,
+    badgeOrangeBg: `transition-colors duration-500 ${isDark ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" : "bg-orange-600/10 text-orange-600 border border-orange-600/20"}`,
   }), [isDark]);
 
   // Modals controller states
@@ -633,7 +633,7 @@ export default function Portfolio() {
         </div>
 
         {/* Interior layout body splits (Sidebar list on left / Files workspace canvas on right) */}
-        <div className={`flex-1 flex overflow-hidden min-h-0 ${isDark ? "bg-[#2a2a2c]" : "bg-white"}`}>
+        <div className={`transition-colors duration-500 flex-1 flex overflow-hidden min-h-0 ${isDark ? "bg-[#2a2a2c]" : "bg-white"}`}>
           
           {/* A. Dynamic sidebar layout list */}
           <aside className={`hidden md:flex w-64 shrink-0 ${styles.sidebarBg} p-4 flex-col space-y-5 select-none overflow-y-auto`}>
@@ -800,7 +800,7 @@ export default function Portfolio() {
                   {filteredOverviewFolders.length > 0 && (filteredOverviewLinks.length > 0 || searchQuery === "") && (
                     <div className="relative py-1">
                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                        <div className={`w-full border-t ${isDark ? "border-white/10" : "border-black/8"}`}></div>
+                        <div className={`transition-colors duration-500 w-full border-t ${isDark ? "border-white/10" : "border-black/8"}`}></div>
                       </div>
                     </div>
                   )}
@@ -818,12 +818,12 @@ export default function Portfolio() {
                             onClick={() => setIsAboutMeOpen(true)}
                             className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
                           >
-                            <div className={`${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] flex flex-col justify-between p-3 relative mb-2`}>
+                            <div className={`transition-colors duration-500 ${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] flex flex-col justify-between p-3 relative mb-2`}>
                               <div className="h-2 bg-orange-500 rounded-sm w-full"></div>
                               <div className="flex flex-col space-y-1.5 py-2 pl-1">
-                                <div className={`h-1 ${isDark ? "bg-slate-700" : "bg-slate-300"} w-2/3 rounded-sm`}></div>
-                                <div className={`h-1 ${isDark ? "bg-slate-800" : "bg-slate-400"} w-5/6 rounded-sm`}></div>
-                                <div className={`h-1 ${isDark ? "bg-slate-700" : "bg-slate-300"} w-4/5 rounded-sm`}></div>
+                                <div className={`transition-colors duration-500 h-1 ${isDark ? "bg-slate-700" : "bg-slate-300"} w-2/3 rounded-sm`}></div>
+                                <div className={`transition-colors duration-500 h-1 ${isDark ? "bg-slate-800" : "bg-slate-400"} w-5/6 rounded-sm`}></div>
+                                <div className={`transition-colors duration-500 h-1 ${isDark ? "bg-slate-700" : "bg-slate-300"} w-4/5 rounded-sm`}></div>
                               </div>
                               <span className="text-[10px] text-orange-500 font-extrabold font-mono text-right pr-0.5">RTF</span>
                             </div>
@@ -882,7 +882,7 @@ export default function Portfolio() {
                             onClick={() => handleLinkOpen(link.url)}
                             className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
                           >
-                            <div className={`w-[120px] h-[120px] ${isDark ? "bg-zinc-800/40 border border-white/5" : "bg-slate-100/70 border border-black/5"} rounded-2xl shadow-sm flex items-center justify-center relative mb-2`}>
+                            <div className={`transition-colors duration-500 w-[120px] h-[120px] ${isDark ? "bg-zinc-800/40 border border-white/5" : "bg-slate-100/70 border border-black/5"} rounded-2xl shadow-sm flex items-center justify-center relative mb-2`}>
                               {getLargeLinkIcon(link.iconName, "w-[32px] h-[32px]")}
                             </div>
                             <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full px-1`}>
@@ -948,7 +948,7 @@ export default function Portfolio() {
                               {/* Medium opacity grey play triangle over video thumbnails */}
                               {img.isVideo && (
                                 <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20">
-                                  <Play className="w-14 h-14 text-slate-500/70 fill-slate-500/70 drop-shadow-lg" />
+                                  <Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" />
                                 </div>
                               )}
                             </div>
@@ -972,7 +972,7 @@ export default function Portfolio() {
         {/* Header 4: Standard bottom status bar details */}
         <div className={`${styles.statusBarBg} py-3.5 px-6 flex flex-row items-center justify-between gap-3 shrink-0 text-xs sm:text-[13px] select-none shadow-inner`}>
           <div className="hidden sm:flex items-center space-x-2 min-w-0 max-w-full">
-            <HardDrive className={`w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
+            <HardDrive className={`transition-colors duration-500 w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
             <span className="font-medium tracking-wide truncate whitespace-nowrap">
               {activeSelection === "overview" 
                 ? "Volume: Jacob's Portfolio SSD" 
@@ -986,10 +986,10 @@ export default function Portfolio() {
             </span>
             
             {/* Theme Toggle Button with Fading effect */}
-            <div className={`flex items-center border-l pl-4 shrink-0 ${isDark ? "border-white/10" : "border-black/10"}`}>
+            <div className={`transition-colors duration-500 flex items-center border-l pl-4 shrink-0 ${isDark ? "border-white/10" : "border-black/10"}`}>
               <button 
                 onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
-                className={`flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full font-semibold cursor-pointer active:scale-95 ${
+                className={`transition-colors duration-500 flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full font-semibold cursor-pointer active:scale-95 ${
                   isDark 
                     ? "bg-white/5 text-slate-300 border border-white/5" 
                     : "bg-black/5 text-slate-700 border border-black/10 shadow-3xs"

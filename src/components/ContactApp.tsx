@@ -71,14 +71,14 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
 
   const styles = {
     backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none pointer-events-none",
-    windowBg: isDark 
+    windowBg: `transition-colors duration-500 ${isDark 
       ? "relative w-[95vw] sm:w-[500px] h-auto min-h-[500px] max-h-[95vh] bg-[#282828] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200 pointer-events-auto" 
-      : "relative w-[95vw] sm:w-[500px] h-auto min-h-[500px] max-h-[95vh] bg-white rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.25)] border border-black/15 flex flex-col font-sans text-[#1f2937] pointer-events-auto",
-    titleBarBg: isDark 
+      : "relative w-[95vw] sm:w-[500px] h-auto min-h-[500px] max-h-[95vh] bg-white rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.25)] border border-black/15 flex flex-col font-sans text-[#1f2937] pointer-events-auto"}`,
+    titleBarBg: `transition-colors duration-500 ${isDark 
       ? "drag-handle cursor-grab active:cursor-grabbing bg-[#333333] h-12 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative pointer-events-auto" 
-      : "drag-handle cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto",
-    titleText: isDark ? "text-slate-300 drop-shadow-sm" : "text-slate-800 drop-shadow-sm",
-    inputBg: isDark ? "bg-[#1C1C1C] border-[#3A3A3A] text-white" : "bg-[#F9FAFB] border-[#E5E7EB] text-slate-900",
+      : "drag-handle cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto"}`,
+    titleText: `transition-colors duration-500 ${isDark ? "text-slate-300 drop-shadow-sm" : "text-slate-800 drop-shadow-sm"}`,
+    inputBg: `transition-colors duration-500 ${isDark ? "bg-[#1C1C1C] border-[#3A3A3A] text-white" : "bg-[#F9FAFB] border-[#E5E7EB] text-slate-900"}`,
   };
 
   return (
@@ -130,7 +130,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
             <div className="w-full h-full flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-300">
               <CheckCircle2 className="w-16 h-16 text-emerald-500 mb-4" />
               <h2 className="text-2xl font-semibold mb-2">Message Sent!</h2>
-              <p className={`mb-8 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+              <p className={`transition-colors duration-500 mb-8 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 Thank you for reaching out. I'll get back to you as soon as possible.
               </p>
               <button 
@@ -138,7 +138,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
                   setFormData({ name: "", contactInfo: "", subject: "", message: "" });
                   setStatus("idle");
                 }}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${isDark ? "bg-white text-black hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"}`}
+                className={`transition-colors duration-500 px-6 py-2 rounded-lg font-medium ${isDark ? "bg-white text-black hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"}`}
               >
                 Send Another
               </button>
@@ -155,7 +155,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
 
               <div className="grid grid-cols-1 gap-4">
                 <div className="flex flex-col space-y-1.5">
-                  <label htmlFor="name" className={`text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Your Name</label>
+                  <label htmlFor="name" className={`transition-colors duration-500 text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Your Name</label>
                   <input
                     id="name"
                     name="name"
@@ -168,7 +168,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
                 </div>
                 
                 <div className="flex flex-col space-y-1.5">
-                  <label htmlFor="contactInfo" className={`text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Email or Phone</label>
+                  <label htmlFor="contactInfo" className={`transition-colors duration-500 text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Email or Phone</label>
                   <input
                     id="contactInfo"
                     name="contactInfo"
@@ -181,7 +181,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
                 </div>
 
                 <div className="flex flex-col space-y-1.5">
-                  <label htmlFor="subject" className={`text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Subject</label>
+                  <label htmlFor="subject" className={`transition-colors duration-500 text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Subject</label>
                   <input
                     id="subject"
                     name="subject"
@@ -194,7 +194,7 @@ export function ContactApp({ onClose, isDark }: ContactAppProps) {
                 </div>
 
                 <div className="flex flex-col space-y-1.5 flex-1 min-h-[160px]">
-                  <label htmlFor="message" className={`text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Message</label>
+                  <label htmlFor="message" className={`transition-colors duration-500 text-[13px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Message</label>
                   <textarea
                     id="message"
                     name="message"

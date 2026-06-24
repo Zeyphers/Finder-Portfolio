@@ -18,30 +18,30 @@ export const TextEditModal: React.FC<TextEditModalProps> = ({ onClose, isDark })
   
   const styles = React.useMemo(() => ({
     backdropBg: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent select-none pointer-events-none",
-    windowBg: isDark 
+    windowBg: `transition-colors duration-500 ${isDark 
       ? "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#282828] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col font-sans text-slate-200 pointer-events-auto" 
-      : "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#F5F5F4] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.25)] border border-black/15 flex flex-col font-sans text-[#1f2937] pointer-events-auto",
-    titleBarBg: isDark 
+      : "relative w-[95vw] sm:w-[650px] max-w-none h-auto min-h-[450px] max-h-[95vh] bg-[#F5F5F4] rounded-[10px] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.25)] border border-black/15 flex flex-col font-sans text-[#1f2937] pointer-events-auto"}`,
+    titleBarBg: `transition-colors duration-500 ${isDark 
       ? "drag-handle cursor-grab active:cursor-grabbing bg-[#333333] h-12 px-4 flex items-center justify-between border-b border-black/30 shrink-0 relative pointer-events-auto" 
-      : "drag-handle cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto",
-    titleText: isDark ? "text-slate-300 drop-shadow-sm" : "text-slate-800 drop-shadow-sm",
-    editorBg: isDark ? "bg-[#1c1c1e]" : "bg-[#dedede]",
-    paperBg: isDark 
+      : "drag-handle cursor-grab active:cursor-grabbing bg-[#E6E6E6] h-12 px-4 flex items-center justify-between border-b border-black/10 shrink-0 relative pointer-events-auto"}`,
+    titleText: `transition-colors duration-500 ${isDark ? "text-slate-300 drop-shadow-sm" : "text-slate-800 drop-shadow-sm"}`,
+    editorBg: `transition-colors duration-500 ${isDark ? "bg-[#1c1c1e]" : "bg-[#dedede]"}`,
+    paperBg: `transition-colors duration-500 ${isDark 
       ? "w-full max-w-xl h-fit bg-[#252526] text-slate-100 p-8 sm:p-10 rounded-xs shadow-[0_10px_25px_rgba(0,0,0,0.6)] border border-zinc-700 font-serif leading-relaxed text-sm select-text selection:bg-[#3063d4]/30" 
-      : "w-full max-w-xl h-fit bg-[#fcfbf9] text-[#1a1a1a] p-8 sm:p-10 rounded-xs shadow-[0_10px_25px_rgba(0,0,0,0.12)] border border-neutral-300 font-serif leading-relaxed text-sm select-text selection:bg-[#1062fe]/25",
-    paperHeaderBorder: isDark ? "border-zinc-700" : "border-neutral-200",
-    paperTitle: isDark ? "text-white" : "text-neutral-900",
-    paperSubtitle: isDark ? "text-slate-400" : "text-neutral-500",
-    paperEstablished: isDark ? "text-slate-500" : "text-neutral-400",
-    paperParagraph: isDark ? "text-slate-300" : "text-neutral-750",
-    sectionHeader: isDark ? "text-slate-200 border-zinc-700" : "text-neutral-950 border-neutral-200",
-    cardBg: isDark ? "bg-zinc-800/40 border-zinc-750/50" : "bg-neutral-50 border-neutral-150",
-    cardTitle: isDark ? "text-slate-200" : "text-neutral-900",
-    cardBody: isDark ? "text-slate-400" : "text-neutral-600",
-    quoteBg: isDark ? "bg-amber-950/25 border-l-4 border-amber-805/50 text-amber-200" : "bg-orange-50/40 border-l-4 border-orange-200 text-neutral-600",
-    footerText: isDark ? "text-slate-500" : "text-neutral-500",
-    footerName: isDark ? "text-slate-300" : "text-neutral-900",
-    statusBarBg: isDark ? "bg-[#2a2a2c] text-slate-500 border-t border-[#1a1a1c]" : "bg-[#f0f0f2] text-slate-600 border-t border-black/10",
+      : "w-full max-w-xl h-fit bg-[#fcfbf9] text-[#1a1a1a] p-8 sm:p-10 rounded-xs shadow-[0_10px_25px_rgba(0,0,0,0.12)] border border-neutral-300 font-serif leading-relaxed text-sm select-text selection:bg-[#1062fe]/25"}`,
+    paperHeaderBorder: `transition-colors duration-500 ${isDark ? "border-zinc-700" : "border-neutral-200"}`,
+    paperTitle: `transition-colors duration-500 ${isDark ? "text-white" : "text-neutral-900"}`,
+    paperSubtitle: `transition-colors duration-500 ${isDark ? "text-slate-400" : "text-neutral-500"}`,
+    paperEstablished: `transition-colors duration-500 ${isDark ? "text-slate-500" : "text-neutral-400"}`,
+    paperParagraph: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-neutral-750"}`,
+    sectionHeader: `transition-colors duration-500 ${isDark ? "text-slate-200 border-zinc-700" : "text-neutral-950 border-neutral-200"}`,
+    cardBg: `transition-colors duration-500 ${isDark ? "bg-zinc-800/40 border-zinc-750/50" : "bg-neutral-50 border-neutral-150"}`,
+    cardTitle: `transition-colors duration-500 ${isDark ? "text-slate-200" : "text-neutral-900"}`,
+    cardBody: `transition-colors duration-500 ${isDark ? "text-slate-400" : "text-neutral-600"}`,
+    quoteBg: `transition-colors duration-500 ${isDark ? "bg-amber-950/25 border-l-4 border-amber-805/50 text-amber-200" : "bg-orange-50/40 border-l-4 border-orange-200 text-neutral-600"}`,
+    footerText: `transition-colors duration-500 ${isDark ? "text-slate-500" : "text-neutral-500"}`,
+    footerName: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-neutral-900"}`,
+    statusBarBg: `transition-colors duration-500 ${isDark ? "bg-[#2a2a2c] text-slate-500 border-t border-[#1a1a1c]" : "bg-[#f0f0f2] text-slate-600 border-t border-black/10"}`,
   }), [isDark]);
 
   const wordCount = React.useMemo(() => {

@@ -376,7 +376,7 @@ export function AdminPanel() {
   };
 
   const downloadScript = () => {
-    const scriptContent = `import sys\nimport subprocess\nimport os\nimport re\n\ndef extract_video_id(url):\n    match = re.search(r"(?:v=|\\\\/)([0-9A-Za-z_-]{11}).*", url)\n    return match.group(1) if match else None\n\ndef process_videos(file_path):\n    with open(file_path, 'r') as f:\n        urls = [line.strip() for line in f if line.strip()]\n        \n    os.makedirs('gifs', exist_ok=True)\n    \n    for url in urls:\n        video_id = extract_video_id(url)\n        if not video_id:\n            print(f"Could not extract video ID from {url}")\n            continue\n            \n        gif_path = f"gifs/{video_id}.gif"\n        if os.path.exists(gif_path):\n            print(f"Skipping {gif_path}, already exists.")\n            continue\n            \n        print(f"Processing {url} -> {gif_path}")\n        \n        temp_video = f"temp_{video_id}.mp4"\n        cmd_download = [\n            "yt-dlp",\n            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",\n            "--download-sections", "*0-10",\n            "-o", temp_video,\n            url\n        ]\n        \n        try:\n            subprocess.run(cmd_download, check=True)\n            \n            cmd_gif = [\n                "ffmpeg",\n                "-y",\n                "-i", temp_video,\n                "-vf", "fps=30,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",\n                "-loop", "0",\n                gif_path\n            ]\n            subprocess.run(cmd_gif, check=True)\n            \n            os.remove(temp_video)\n            print(f"Successfully created {gif_path}")\n            \n        except subprocess.CalledProcessError as e:\n            print(f"Error processing {url}: {e}")\n            if os.path.exists(temp_video):\n                os.remove(temp_video)\n\nif __name__ == "__main__":\n    process_videos("urls.txt")\n`;
+    const scriptContent = `import sys\nimport subprocess\nimport os\nimport re\nimport json\n\ndef extract_video_id(url):\n    match = re.search(r"(?:v=|\\\\/)([0-9A-Za-z_-]{11}).*", url)\n    return match.group(1) if match else None\n\ndef process_videos(file_path):\n    with open(file_path, 'r') as f:\n        urls = [line.strip() for line in f if line.strip()]\n        \n    os.makedirs('gifs', exist_ok=True)\n    \n    for url in urls:\n        video_id = extract_video_id(url)\n        if not video_id:\n            print(f"Could not extract video ID from {url}")\n            continue\n            \n        try:\n            info_cmd = ["yt-dlp", "--dump-json", url]\n            result = subprocess.run(info_cmd, capture_output=True, text=True, check=True)\n            info = json.loads(result.stdout)\n            title = info.get('title', video_id)\n            safe_title = re.sub(r'[^a-zA-Z0-9]', '_', title)\n        except Exception as e:\n            print(f"Could not fetch title for {url}: {e}")\n            safe_title = video_id\n            \n        gif_path = f"gifs/{video_id}___{safe_title}.gif"\n        if os.path.exists(gif_path):\n            print(f"Skipping {gif_path}, already exists.")\n            continue\n            \n        print(f"Processing {url} -> {gif_path}")\n        \n        temp_video = f"temp_{video_id}.mp4"\n        cmd_download = [\n            "yt-dlp",\n            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",\n            "--download-sections", "*0-10",\n            "-o", temp_video,\n            url\n        ]\n        \n        try:\n            subprocess.run(cmd_download, check=True)\n            \n            cmd_gif = [\n                "ffmpeg",\n                "-y",\n                "-i", temp_video,\n                "-vf", "fps=30,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",\n                "-loop", "0",\n                gif_path\n            ]\n            subprocess.run(cmd_gif, check=True)\n            \n            os.remove(temp_video)\n            print(f"Successfully created {gif_path}")\n            \n        except subprocess.CalledProcessError as e:\n            print(f"Error processing {url}: {e}")\n            if os.path.exists(temp_video):\n                os.remove(temp_video)\n\nif __name__ == "__main__":\n    process_videos("urls.txt")\n`;
     const blob = new Blob([scriptContent], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -394,9 +394,11 @@ export function AdminPanel() {
       const newProjects = JSON.parse(JSON.stringify(localProjects));
       
       for (const file of files) {
-        const fileNameMatch = file.name.match(/^([0-9A-Za-z_-]{11})\.gif$/);
+        const fileNameMatch = file.name.match(/^([0-9A-Za-z_-]{11})(?:___(.*))?\.gif$/);
         if (!fileNameMatch) continue;
         const ytId = fileNameMatch[1];
+        const titlePart = fileNameMatch[2];
+        const formattedTitle = titlePart ? titlePart.replace(/_+/g, '_') + '.mp4' : undefined;
         
         const url = await uploadFileWithChunks(file);
         
@@ -415,6 +417,9 @@ export function AdminPanel() {
               
               if (currentYtId === ytId) {
                 img.url = url;
+                if (formattedTitle) {
+                  img.fileName = formattedTitle;
+                }
                 uploadedCount++;
               }
             }
