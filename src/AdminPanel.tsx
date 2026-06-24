@@ -112,83 +112,66 @@ export function AdminPanel() {
       const currentRemoteDataRes = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
       const currentRemoteData = await currentRemoteDataRes.json();
       
-      console.log("Saving to:", getApiUrl("/api/data"));
-      
       const payloadObj = { 
         PROJECTS: localProjects, 
         EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS,
         ABOUT: localAbout,
         SIDEBAR: localSidebar
       };
-      const payloadString = JSON.stringify(payloadObj);
-      const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunks
       
-      const totalChunks = Math.ceil(payloadString.length / CHUNK_SIZE);
+      const payloadStr = JSON.stringify(payloadObj);
+      const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunk size
       
-      if (totalChunks > 1) {
-        console.log(`Payload is large (${payloadString.length} chars), sending in ${totalChunks} chunks...`);
-        const fileId = "datajson_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-        let success = true;
+      if (payloadStr.length > CHUNK_SIZE) {
+        console.log(`Payload is large (${(payloadStr.length / 1024 / 1024).toFixed(2)}MB). Chunking...`);
+        const totalChunks = Math.ceil(payloadStr.length / CHUNK_SIZE);
+        const fileId = `data_${Date.now()}`;
         
+        let lastRes;
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
-          const chunkStr = payloadString.slice(start, start + CHUNK_SIZE);
+          const chunkStr = payloadStr.slice(start, start + CHUNK_SIZE);
           
           const res = await fetch(getApiUrl("/api/data"), {
             method: "POST",
-            headers: { 
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json"
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
             },
             body: JSON.stringify({
+              fileId,
               chunkIndex: i,
               totalChunks,
-              fileId,
-              chunkString: chunkStr
+              chunkData: chunkStr
             })
           });
-          
-          if (!res.ok) {
-            success = false;
-            const errText = await res.text();
-            console.error(`Save error response for chunk ${i}:`, errText);
-            alert(`Failed to save data chunk ${i + 1}/${totalChunks}: ${errText}`);
-            break;
+          lastRes = await res.json();
+          if (!lastRes.success) {
+            throw new Error(lastRes.error || "Chunk upload failed");
           }
         }
-        
-        if (success) {
-          console.log("All chunks saved successfully.");
-          await refreshData();
-          setSaveSuccess(true);
-          setTimeout(() => {
-            setSaveSuccess(false);
-          }, 3000);
-        }
       } else {
+        console.log("Saving normally to:", getApiUrl("/api/data"));
         const res = await fetch(getApiUrl("/api/data"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
           },
-          body: payloadString
+          body: payloadStr
         });
-        console.log("Save response status:", res.status);
-        if (res.ok) {
-          const resultData = await res.json();
-          console.log("Save result:", resultData);
-          await refreshData();
-          setSaveSuccess(true);
-          setTimeout(() => {
-            setSaveSuccess(false);
-          }, 3000);
-        } else {
+        if (!res.ok) {
           const errText = await res.text();
           console.error("Save error response:", errText);
-          alert(`Failed to save data: ${errText}`);
+          throw new Error(errText);
         }
       }
+
+      await refreshData();
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
     } catch (err: any) {
       console.error("Save Exception:", err);
       alert(`Error saving data: ${err.message || String(err)}`);
@@ -886,6 +869,39 @@ export function AdminPanel() {
                 <label htmlFor="disableCooldown" className="flex flex-col cursor-pointer">
                   <span className="text-sm font-semibold text-slate-800">Disable Contact Form Cooldown</span>
                   <span className="text-xs text-slate-500">Allows multiple messages to be sent within 10 minutes (useful for testing).</span>
+                </label>
+              </div>
+
+              <div className="pt-6 border-t border-slate-200">
+                <h3 className="text-sm font-bold text-slate-900 mb-2">Data Management</h3>
+                <p className="text-xs text-slate-500 mb-4">Restore your portfolio data from a downloaded JSON backup file.</p>
+                
+                <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-md text-sm font-medium transition inline-flex items-center space-x-2 border border-slate-300 shadow-sm">
+                  <Upload className="w-4 h-4" />
+                  <span>Restore from JSON Backup</span>
+                  <input 
+                    type="file" 
+                    accept=".json" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        try {
+                          const data = JSON.parse(event.target?.result as string);
+                          if (data.PROJECTS) setLocalProjects(data.PROJECTS);
+                          if (data.ABOUT) setLocalAbout(data.ABOUT);
+                          if (data.SIDEBAR) setLocalSidebar(data.SIDEBAR);
+                          alert("Data imported successfully! Please review the changes and click 'Save Changes' to apply them.");
+                        } catch (err) {
+                          alert("Failed to parse JSON file.");
+                        }
+                      };
+                      reader.readAsText(file);
+                      e.target.value = "";
+                    }} 
+                  />
                 </label>
               </div>
             </div>

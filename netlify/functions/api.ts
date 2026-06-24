@@ -138,28 +138,23 @@ router.get("/data", async (req, res) => {
 router.post("/data", requireAuth, async (req, res) => {
   try {
     if (req.body && req.body.chunkIndex !== undefined) {
-      const { chunkIndex, totalChunks, fileId, chunkString } = req.body;
+      const { chunkIndex, totalChunks, fileId, chunkData } = req.body;
       const chunkStore = getStore("chunks");
-      await chunkStore.set(`${fileId}_${chunkIndex}`, chunkString);
+      await chunkStore.set(`data_${fileId}_${chunkIndex}`, chunkData);
 
       if (chunkIndex === totalChunks - 1) {
-        let fullString = "";
+        let fullDataString = "";
         for (let i = 0; i < totalChunks; i++) {
-          const c = await chunkStore.get(`${fileId}_${i}`);
-          if (c) fullString += c;
+          const c = await chunkStore.get(`data_${fileId}_${i}`);
+          if (c) fullDataString += c;
         }
 
-        const jsonData = JSON.parse(fullString);
-        
-        const dataStore = getStore("data");
-        await dataStore.setJSON("data.json", jsonData);
-        
-        // Cleanup
+        req.body = JSON.parse(fullDataString);
+
+        // cleanup chunks asynchronously
         for (let i = 0; i < totalChunks; i++) {
-          chunkStore.delete(`${fileId}_${i}`).catch(() => {});
+          chunkStore.delete(`data_${fileId}_${i}`).catch(() => {});
         }
-        
-        return res.json({ success: true, blobed: true });
       } else {
         return res.json({ success: true, chunkReceived: true });
       }

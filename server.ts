@@ -203,26 +203,19 @@ async function startServer() {
   app.post("/api/data", requireAuth, async (req, res) => {
     try {
       if (req.body && req.body.chunkIndex !== undefined) {
-        const { chunkIndex, totalChunks, fileId, chunkString } = req.body;
+        const { chunkIndex, totalChunks, fileId, chunkData } = req.body;
         
         if (!dataChunks.has(fileId)) {
           dataChunks.set(fileId, new Array(totalChunks));
         }
         
-        const fileChunksArray = dataChunks.get(fileId)!;
-        fileChunksArray[chunkIndex] = chunkString;
+        const chunks = dataChunks.get(fileId)!;
+        chunks[chunkIndex] = chunkData;
 
         if (chunkIndex === totalChunks - 1) {
-          const fullString = fileChunksArray.join("");
+          const fullDataString = chunks.join("");
           dataChunks.delete(fileId);
-          
-          const jsonData = JSON.parse(fullString);
-          const dataPath = path.join(process.cwd(), "src/data.json");
-          const contentString = JSON.stringify(jsonData, null, 2);
-          fs.writeFileSync(dataPath, contentString);
-          
-          const githubSuccess = await pushDataToGithub(contentString);
-          return res.json({ success: true, githubSynced: githubSuccess });
+          req.body = JSON.parse(fullDataString);
         } else {
           return res.json({ success: true, chunkReceived: true });
         }
