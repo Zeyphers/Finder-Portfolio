@@ -451,9 +451,9 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
       onClick={() => setHasInteracted(true)}
     >
       {!hasInteracted && config.audioUrl && (
-        <div className="absolute top-6 right-6 font-boot text-4xl text-gray-500 flex items-center gap-4 animate-pulse cursor-pointer">
-          <VolumeX size={36} /> 
-          <span>Click anywhere to unmute</span>
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 w-max max-w-[90vw] font-boot text-2xl sm:text-4xl text-gray-500 flex flex-wrap items-center justify-center gap-2 sm:gap-4 animate-pulse cursor-pointer">
+          <VolumeX size={36} className="shrink-0" /> 
+          <span className="text-center">Click anywhere to unmute</span>
         </div>
       )}
       <div ref={containerRef} className="max-h-full overflow-y-auto pb-4 no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

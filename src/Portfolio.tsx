@@ -509,10 +509,10 @@ export default function Portfolio() {
               <div 
                 className={`relative max-w-full max-h-full h-full p-2 overflow-hidden flex items-center justify-center ${
                   selectedProject.gallery[lightboxIndex].isVideo 
-                    ? "w-[95vw] md:w-[85vw] aspect-video" 
+                    ? "w-[95vw] md:w-[85vw] aspect-video pointer-events-auto" 
                     : lightboxZoom > 1 
-                      ? "cursor-zoom-out" 
-                      : "cursor-zoom-in"
+                      ? "pointer-events-auto" 
+                      : "pointer-events-none"
                 }`}
                 style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { 
                   transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
@@ -535,8 +535,8 @@ export default function Portfolio() {
                     src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
                     alt="High Resolution Portfolio Asset"
                     objectFit="contain"
-                    containerClassName="w-full h-full max-h-full max-w-[90vw] md:max-w-[85vw] flex items-center justify-center drop-shadow-2xl"
-                    className="w-full h-full max-h-full max-w-[90vw] md:max-w-[85vw] pointer-events-auto"
+                    containerClassName="w-full h-full max-h-full max-w-[90vw] md:max-w-[85vw] flex items-center justify-center drop-shadow-2xl pointer-events-none"
+                    className={`max-w-full max-h-full pointer-events-auto ${lightboxZoom > 1 ? "cursor-zoom-out" : "cursor-zoom-in"}`}
                     referrerPolicy="no-referrer"
                     onClick={handleZoomClick}
                   />
