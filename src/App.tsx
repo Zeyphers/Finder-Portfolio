@@ -5,6 +5,7 @@ import { AdminPanel } from "./AdminPanel";
 import { DataProvider } from "./DataContext";
 
 export default function App() {
+  // Application entry point wrapper
   return (
     <DataProvider>
       <BrowserRouter>

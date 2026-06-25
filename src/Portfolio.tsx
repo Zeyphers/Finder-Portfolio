@@ -5,6 +5,7 @@ import { MemoryGameApp } from "./components/MemoryGameApp";
 import { ContactApp } from "./components/ContactApp";
 import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
 import BootAnimation from "./components/BootAnimation";
+// Import data context for global state
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";

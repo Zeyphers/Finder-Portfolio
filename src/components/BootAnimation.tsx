@@ -57,7 +57,8 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     const printNextLine = () => {
       if (!isRunning || currentIndex >= allLines.length) return;
 
-      setLines(prev => [...prev, allLines[currentIndex]]);
+      const lineToAdd = allLines[currentIndex];
+      setLines(prev => [...prev, lineToAdd]);
       currentIndex++;
 
       // Random delay to simulate processing
@@ -96,6 +97,7 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
   }, [lines]);
 
   const formatLine = (line: string) => {
+    if (typeof line !== 'string') return null;
     let html = line
       .replace(/\bOK\b/g, '<span class="text-green-400 font-bold">OK</span>')
       .replace(/\b(?:NO|ERROR|FAILED|FAIL)\b/g, '<span class="text-red-500 font-bold">$&</span>')
