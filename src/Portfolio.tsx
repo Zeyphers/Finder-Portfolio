@@ -4,6 +4,7 @@ import { TextEditModal } from "./components/TextEditModal";
 import { MemoryGameApp } from "./components/MemoryGameApp";
 import { ContactApp } from "./components/ContactApp";
 import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
+import BootAnimation from "./components/BootAnimation";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
@@ -82,6 +83,8 @@ export default function Portfolio() {
   const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR } = useAppletData();
   
   const isProd = window.location.hostname.includes('netlify.app') || window.location.hostname === 'jake-pay.com' || window.location.hostname === 'www.jake-pay.com';
+  
+  const [bootCompleted, setBootCompleted] = useState(false);
   
   const PROJECTS = React.useMemo(() => {
     if (isProd) return RAW_PROJECTS.filter(p => p.id !== "test-folder");
@@ -434,6 +437,7 @@ export default function Portfolio() {
   };
 
   return (
+    <>
     <div className={`h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-hidden antialiased select-none`}>
       
       {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
@@ -1037,5 +1041,13 @@ export default function Portfolio() {
       </motion.div>
 
     </div>
+    
+    {about?.bootConfig?.enabled && !bootCompleted && (
+      <BootAnimation 
+        config={about.bootConfig} 
+        onComplete={() => setBootCompleted(true)} 
+      />
+    )}
+    </>
   );
 }

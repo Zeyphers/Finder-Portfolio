@@ -463,7 +463,7 @@ if __name__ == "__main__":
   };
 
   const handleGifUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []) as File[];
     if (files.length === 0) return;
 
     setUploadingGifs(true);
@@ -1059,6 +1059,89 @@ if __name__ == "__main__":
                   <span className="text-sm font-semibold text-slate-800">Disable Contact Form Cooldown</span>
                   <span className="text-xs text-slate-500">Allows multiple messages to be sent within 10 minutes (useful for testing).</span>
                 </label>
+              </div>
+
+              <div className="pt-6 border-t border-slate-200">
+                <h3 className="text-sm font-bold text-slate-900 mb-2">Boot Animation Settings</h3>
+                <p className="text-xs text-slate-500 mb-4">Configure the terminal-style bootup sequence that plays on initial load.</p>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 bg-slate-50 border border-slate-200 p-4 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="bootEnabled"
+                      checked={localAbout?.bootConfig?.enabled ?? true}
+                      onChange={e => setLocalAbout({ 
+                        ...localAbout, 
+                        bootConfig: { ...(localAbout?.bootConfig || { durationMs: 5000 }), enabled: e.target.checked }
+                      })}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="bootEnabled" className="flex flex-col cursor-pointer">
+                      <span className="text-sm font-semibold text-slate-800">Enable Boot Animation</span>
+                      <span className="text-xs text-slate-500">Show the terminal bootup sequence on first load.</span>
+                    </label>
+                  </div>
+
+                  {localAbout?.bootConfig?.enabled !== false && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (ms)</label>
+                        <input
+                          type="number"
+                          value={localAbout?.bootConfig?.durationMs ?? 5000}
+                          onChange={e => setLocalAbout({
+                            ...localAbout,
+                            bootConfig: { ...(localAbout?.bootConfig || { enabled: true }), durationMs: parseInt(e.target.value) || 0 }
+                          })}
+                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
+                          placeholder="5000"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Text Speed (ms/line)</label>
+                        <input
+                          type="number"
+                          value={localAbout?.bootConfig?.textSpeedMs ?? 50}
+                          onChange={e => setLocalAbout({
+                            ...localAbout,
+                            bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), textSpeedMs: parseInt(e.target.value) || 0 }
+                          })}
+                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
+                          placeholder="50"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Boot Audio URL (MP3/WAV)</label>
+                        <input
+                          type="text"
+                          value={localAbout?.bootConfig?.audioUrl || ""}
+                          onChange={e => setLocalAbout({
+                            ...localAbout,
+                            bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), audioUrl: e.target.value }
+                          })}
+                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
+                          placeholder="https://example.com/boot.mp3"
+                        />
+                      </div>
+                      
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Boot Text (Optional)</label>
+                        <textarea
+                          value={localAbout?.bootConfig?.customText || ""}
+                          onChange={e => setLocalAbout({
+                            ...localAbout,
+                            bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), customText: e.target.value }
+                          })}
+                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm h-32"
+                          placeholder="Loading system modules...&#10;Mounting /dev/sda1...&#10;Starting GUI..."
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="pt-6 border-t border-slate-200">

@@ -19,7 +19,12 @@ const fallbackAbout: AboutInfo = {
   bio: "This is my bio.",
   contact: "jakeypay@gmail.com",
   signoff: "Best, Zeyphers",
-  disableContactCooldown: false
+  disableContactCooldown: false,
+  bootConfig: {
+    enabled: true,
+    durationMs: 5000,
+    textSpeedMs: 50,
+  }
 };
 
 export const DataContext = createContext<DataContextType>({
@@ -56,7 +61,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setLinks(cleanedLinks);
         
         // Handle backwards compatibility if server data doesn't have ABOUT or SIDEBAR yet
-        setAbout(d.ABOUT || fallbackAbout);
+        setAbout({
+          ...fallbackAbout,
+          ...(d.ABOUT || {}),
+          bootConfig: {
+            ...fallbackAbout.bootConfig,
+            ...(d.ABOUT?.bootConfig || {})
+          }
+        });
         setSidebar(d.SIDEBAR || []);
       }
     } catch (e) {

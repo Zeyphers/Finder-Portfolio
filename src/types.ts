@@ -38,6 +38,14 @@ export interface Project {
   };
 }
 
+export interface BootConfig {
+  enabled: boolean;
+  durationMs: number;
+  audioUrl?: string;
+  customText?: string;
+  textSpeedMs?: number;
+}
+
 export interface AboutInfo {
   name: string;
   title: string;
@@ -50,6 +58,7 @@ export interface AboutInfo {
   tabIconUrl?: string;
   disableContactCooldown?: boolean;
   autoBackupIntervalHrs?: number;
+  bootConfig?: BootConfig;
 }
 
 export interface SidebarItem {
