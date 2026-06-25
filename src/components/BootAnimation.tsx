@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { VolumeX } from 'lucide-react';
 import { BootConfig } from '../types';
 
 interface BootAnimationProps {
@@ -442,8 +443,19 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
+  const [hasInteracted, setHasInteracted] = useState(false);
+
   return (
-    <div className="fixed inset-0 bg-black z-[9999] text-gray-200 font-mono text-sm sm:text-base p-4 sm:p-8 overflow-hidden flex flex-col justify-end">
+    <div 
+      className="fixed inset-0 bg-black z-[9999] text-gray-200 font-mono text-sm sm:text-base p-4 sm:p-8 overflow-hidden flex flex-col justify-end select-none"
+      onClick={() => setHasInteracted(true)}
+    >
+      {!hasInteracted && config.audioUrl && (
+        <div className="absolute top-6 right-6 font-boot text-4xl text-gray-500 flex items-center gap-4 animate-pulse cursor-pointer">
+          <VolumeX size={36} /> 
+          <span>Click anywhere to unmute</span>
+        </div>
+      )}
       <div ref={containerRef} className="max-h-full overflow-y-auto pb-4 no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {lines.map((line, i) => (
           <div key={i} className="mb-1 opacity-90 break-words">{formatLine(line)}</div>

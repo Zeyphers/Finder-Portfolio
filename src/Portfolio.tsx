@@ -955,7 +955,14 @@ export default function Portfolio() {
                         return (
                           <div 
                             key={index}
-                            onClick={() => { setLightboxIndex(index); }}
+                            onClick={() => { 
+                              const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url));
+                              if (isLoaded) {
+                                setLightboxIndex(index);
+                              } else {
+                                new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {});
+                              }
+                            }}
                             className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg break-inside-avoid inline-block w-full`}
                           >
                             {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
