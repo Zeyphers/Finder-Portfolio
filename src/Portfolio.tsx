@@ -582,7 +582,7 @@ export default function Portfolio() {
               onClick={e => e.stopPropagation()}
             >
               <div 
-                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 break-words whitespace-pre-wrap [&_p]:break-words [&_a]:break-all [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
+                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 whitespace-pre-wrap [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
                 dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml! }}
               />
             </div>
@@ -938,62 +938,65 @@ export default function Portfolio() {
                         dangerouslySetInnerHTML={{ __html: selectedProject.description }}
                       />
                     )}
-                    <div className="columns-2 md:columns-4 gap-[10px]">
-                      {selectedProject.gallery.map((img, index) => {
-                        const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
-                        let extension = index % 2 === 0 ? "png" : "jpg";
-                        if (img.url.toLowerCase().endsWith(".gif")) {
-                          extension = "gif";
-                        } else if (img.url.toLowerCase().endsWith(".png")) {
-                          extension = "png";
-                        } else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) {
-                          extension = "jpg";
-                        }
-                        if (img.isVideo) extension = "mp4";
-                        const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
-                        
-                        return (
-                          <div key={index} className="break-inside-avoid mb-[10px] w-full">
-                            <div 
-                              onClick={() => { 
-                                const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url));
-                                if (isLoaded) {
-                                  setLightboxIndex(index);
-                                } else {
-                                  new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {});
-                                }
-                              }}
-                              className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}
-                            >
-                              {/* Render image without cropping, keeping its natural aspect ratio, with relative container for overlays */}
-                              <div 
-                                className="w-full relative p-1"
-                                style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}
-                              >
-                                <ProgressiveImage 
-                                  src={getImageUrl(img.url)} 
-                                  alt={img.caption}
-                                  objectFit="cover"
-                                  className="w-full h-full rounded-sm"
-                                  containerClassName="absolute inset-1"
-                                  referrerPolicy="no-referrer"
-                                />
-                                
-                                {/* Medium opacity grey play triangle over video thumbnails */}
-                                {img.isVideo && (
-                                  <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20">
-                                    <Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" />
+                    <>
+                      {/* Desktop Masonry (4 columns) */}
+                      <div className="hidden md:flex flex-row gap-[10px] items-start">
+                        {Array.from({length: 4}).map((_, colIndex) => (
+                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px]">
+                            {selectedProject.gallery.map((img, index) => {
+                              if (index % 4 !== colIndex) return null;
+                              const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
+                              let extension = index % 2 === 0 ? "png" : "jpg";
+                              if (img.url.toLowerCase().endsWith(".gif")) extension = "gif";
+                              else if (img.url.toLowerCase().endsWith(".png")) extension = "png";
+                              else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
+                              if (img.isVideo) extension = "mp4";
+                              const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
+                              return (
+                                <div key={index} className="w-full">
+                                  <div onClick={() => { const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url)); if (isLoaded) setLightboxIndex(index); else new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {}); }} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
+                                    <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
+                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" />
+                                      {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
+                                    </div>
+                                    <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
                                   </div>
-                                )}
-                              </div>
-                              <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>
-                                {filename}
-                              </div>
-                            </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                      
+                      {/* Mobile Masonry (2 columns) */}
+                      <div className="flex md:hidden flex-row gap-[10px] items-start">
+                        {Array.from({length: 2}).map((_, colIndex) => (
+                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px]">
+                            {selectedProject.gallery.map((img, index) => {
+                              if (index % 2 !== colIndex) return null;
+                              const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
+                              let extension = index % 2 === 0 ? "png" : "jpg";
+                              if (img.url.toLowerCase().endsWith(".gif")) extension = "gif";
+                              else if (img.url.toLowerCase().endsWith(".png")) extension = "png";
+                              else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
+                              if (img.isVideo) extension = "mp4";
+                              const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
+                              return (
+                                <div key={index} className="w-full">
+                                  <div onClick={() => { const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url)); if (isLoaded) setLightboxIndex(index); else new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {}); }} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
+                                    <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
+                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" />
+                                      {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
+                                    </div>
+                                    <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   </div>
 
                 </div>
