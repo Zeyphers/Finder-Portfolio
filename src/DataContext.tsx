@@ -24,6 +24,7 @@ const fallbackAbout: AboutInfo = {
     enabled: true,
     durationMs: 5000,
     textSpeedMs: 50,
+    audioUrl: "https://froods.ca/~dschaub/AppleSounds/Startup/StartupIntelT2Mac.wav",
   }
 };
 

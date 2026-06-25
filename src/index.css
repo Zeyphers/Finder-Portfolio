@@ -7,6 +7,14 @@
   --font-mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
 }
 
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Rounded macOS custom elements */
 ::-webkit-scrollbar {
   width: 7px;
