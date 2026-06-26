@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { FolderIcon } from "./components/FolderIcon";
 import { TextEditModal } from "./components/TextEditModal";
 import { MemoryGameApp } from "./components/MemoryGameApp";
+import { MusicApp } from "./components/MusicApp";
 import { ContactApp } from "./components/ContactApp";
 import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
 import BootAnimation from "./components/BootAnimation";
@@ -9,7 +10,7 @@ import BootAnimation from "./components/BootAnimation";
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
-import { motion, useDragControls } from "motion/react";
+import { motion, useDragControls, AnimatePresence } from "motion/react";
 import { 
   Folder, 
   Search, 
@@ -40,7 +41,8 @@ import {
   Linkedin,
   Youtube,
   Play,
-  ChevronDown
+  ChevronDown,
+  Music
 } from "lucide-react";
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -252,6 +254,7 @@ export default function Portfolio() {
   // Modals controller states
   const [isAboutMeOpen, setIsAboutMeOpen] = useState<boolean>(false);
   const [isMemoryGameOpen, setIsMemoryGameOpen] = useState<boolean>(false);
+  const [isMusicAppOpen, setIsMusicAppOpen] = useState<boolean>(false);
   const [isContactAppOpen, setIsContactAppOpen] = useState<boolean>(false);
   
   // Lightbox controller state
@@ -442,19 +445,32 @@ export default function Portfolio() {
     <div className={`h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-hidden antialiased select-none`}>
       
       {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
-      {isAboutMeOpen && (
-        <TextEditModal onClose={() => setIsAboutMeOpen(false)} isDark={isDark} />
-      )}
+      <AnimatePresence>
+        {isAboutMeOpen && (
+          <TextEditModal onClose={() => setIsAboutMeOpen(false)} isDark={isDark} />
+        )}
+      </AnimatePresence>
 
       {/* 6. Memory Game App */}
-      {isMemoryGameOpen && (
-        <MemoryGameApp onClose={() => setIsMemoryGameOpen(false)} projects={PROJECTS} isDark={isDark} />
-      )}
+      <AnimatePresence>
+        {isMemoryGameOpen && (
+          <MemoryGameApp onClose={() => setIsMemoryGameOpen(false)} projects={PROJECTS} isDark={isDark} />
+        )}
+      </AnimatePresence>
+
+      {/* 6.5 Music App */}
+      <AnimatePresence>
+        {isMusicAppOpen && (
+          <MusicApp onClose={() => setIsMusicAppOpen(false)} zIndex={999} />
+        )}
+      </AnimatePresence>
 
       {/* Contact Me App */}
-      {isContactAppOpen && (
-        <ContactApp onClose={() => setIsContactAppOpen(false)} isDark={isDark} />
-      )}
+      <AnimatePresence>
+        {isContactAppOpen && (
+          <ContactApp onClose={() => setIsContactAppOpen(false)} isDark={isDark} />
+        )}
+      </AnimatePresence>
 
       {/* 7. macOS Preview Lightbox Overlay */}
       {lightboxIndex !== null && selectedProject && (
@@ -539,6 +555,7 @@ export default function Portfolio() {
                     className={`max-w-full max-h-full pointer-events-auto ${lightboxZoom > 1 ? "cursor-zoom-out" : "cursor-zoom-in"}`}
                     referrerPolicy="no-referrer"
                     onClick={handleZoomClick}
+                    draggable={false}
                   />
                 )}
               </div>
@@ -882,6 +899,37 @@ export default function Portfolio() {
                           </div>
                         )}
 
+                        {/* App: Music */}
+                        {(searchQuery === "" || "music".includes(searchQuery.toLowerCase()) || "apple music".includes(searchQuery.toLowerCase())) && (
+                          <div 
+                            onClick={() => setIsMusicAppOpen(true)}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                          >
+                            <div className={`w-[120px] h-[120px] bg-gradient-to-b from-[#df5b69] to-[#b02c3a] rounded-2xl shadow-sm flex items-center justify-center relative mb-2 border border-black/10`}>
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="46" 
+                                height="46" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                className="text-white drop-shadow-md -ml-2 mt-2"
+                              >
+                                <path d="M9 18V5l12-2v13" />
+                                <circle cx="6" cy="18" r="3" fill="currentColor" />
+                                <circle cx="18" cy="16" r="3" fill="currentColor" />
+                              </svg>
+                            </div>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full px-1`}>
+                              Apple Music
+                            </span>
+                            <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Application</span>
+                          </div>
+                        )}
+
                         {/* App: Contact Me */}
                         {(searchQuery === "" || "contact".includes(searchQuery.toLowerCase()) || "mail".includes(searchQuery.toLowerCase())) && (
                           <div 
@@ -956,7 +1004,7 @@ export default function Portfolio() {
                                 <div key={index} className="w-full">
                                   <div onClick={() => { const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url)); if (isLoaded) setLightboxIndex(index); else new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {}); }} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
                                     <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
-                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" />
+                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
                                       {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
                                     </div>
                                     <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
@@ -985,7 +1033,7 @@ export default function Portfolio() {
                                 <div key={index} className="w-full">
                                   <div onClick={() => { const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url)); if (isLoaded) setLightboxIndex(index); else new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {}); }} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
                                     <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
-                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" />
+                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
                                       {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
                                     </div>
                                     <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
