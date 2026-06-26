@@ -480,16 +480,30 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
 
   const [hasInteracted, setHasInteracted] = useState(false);
 
+  const handleInteraction = () => {
+    if (!hasInteracted) {
+      setHasInteracted(true);
+      // Unlock audio for mobile browsers by playing and pausing immediately
+      if (audioRef.current) {
+        audioRef.current.play().then(() => {
+          audioRef.current?.pause();
+          if (audioRef.current) audioRef.current.currentTime = 0;
+        }).catch(() => {});
+      }
+    }
+  };
+
   if (isAppleStyle) {
     return (
       <div 
         className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center select-none"
-        onClick={() => setHasInteracted(true)}
+        onClick={handleInteraction}
+        onTouchStart={handleInteraction}
       >
         {!hasInteracted && config.audioUrl && (
           <div className="absolute top-8 left-1/2 -translate-x-1/2 w-max max-w-[90vw] text-xl text-gray-500 flex flex-wrap items-center justify-center gap-2 sm:gap-4 animate-pulse cursor-pointer z-10">
             <VolumeX size={24} className="shrink-0" /> 
-            <span className="text-center">Click anywhere to unmute</span>
+            <span className="text-center">Tap anywhere to unmute</span>
           </div>
         )}
         <div className="flex flex-col items-center justify-center w-full max-w-sm mt-[-10vh]">
@@ -517,12 +531,13 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
   return (
     <div 
       className="fixed inset-0 bg-black z-[9999] text-gray-200 font-mono text-sm sm:text-base p-4 sm:p-8 overflow-hidden flex flex-col justify-end select-none"
-      onClick={() => setHasInteracted(true)}
+      onClick={handleInteraction}
+      onTouchStart={handleInteraction}
     >
       {!hasInteracted && config.audioUrl && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 w-max max-w-[90vw] font-boot text-2xl sm:text-4xl text-gray-500 flex flex-wrap items-center justify-center gap-2 sm:gap-4 animate-pulse cursor-pointer">
           <VolumeX size={36} className="shrink-0" /> 
-          <span className="text-center">Click anywhere to unmute</span>
+          <span className="text-center">Tap anywhere to unmute</span>
         </div>
       )}
       <div ref={containerRef} className="max-h-full overflow-y-auto pb-4 no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

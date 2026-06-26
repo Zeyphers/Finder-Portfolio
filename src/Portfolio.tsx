@@ -1054,15 +1054,11 @@ export default function Portfolio() {
 
     </div>
     
-    {!isDataLoaded ? (
-      <div className="fixed inset-0 bg-black z-[9999]"></div>
-    ) : (
-      about?.bootConfig?.enabled && !bootCompleted && (
-        <BootAnimation 
-          config={about.bootConfig} 
-          onComplete={() => setBootCompleted(true)} 
-        />
-      )
+    {about?.bootConfig?.enabled && !bootCompleted && (
+      <BootAnimation 
+        config={about.bootConfig} 
+        onComplete={() => setBootCompleted(true)} 
+      />
     )}
     </>
   );

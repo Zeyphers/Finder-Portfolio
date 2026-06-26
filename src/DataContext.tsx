@@ -29,6 +29,32 @@ const fallbackAbout: AboutInfo = {
   }
 };
 
+const safeGetItem = (key: string) => {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+};
+
+const safeSetItem = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch (e) {}
+};
+
+const getInitialAbout = (): AboutInfo => {
+  const cached = safeGetItem('cached_about');
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      return {
+        ...fallbackAbout,
+        ...parsed,
+        bootConfig: {
+          ...fallbackAbout.bootConfig,
+          ...(parsed.bootConfig || {})
+        }
+      };
+    } catch (e) {}
+  }
+  return fallbackAbout;
+};
+
 export const DataContext = createContext<DataContextType>({
   projects: [],
   links: [],
@@ -47,10 +73,19 @@ const cleanLinkName = (name: string) => {
 };
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [links, setLinks] = useState<ExternalLink[]>([]);
-  const [about, setAbout] = useState<AboutInfo>(fallbackAbout);
-  const [sidebar, setSidebar] = useState<SidebarItem[]>([]);
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const cached = safeGetItem('cached_projects');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [links, setLinks] = useState<ExternalLink[]>(() => {
+    const cached = safeGetItem('cached_links');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [about, setAbout] = useState<AboutInfo>(getInitialAbout);
+  const [sidebar, setSidebar] = useState<SidebarItem[]>(() => {
+    const cached = safeGetItem('cached_sidebar');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const refreshData = async () => {
@@ -58,22 +93,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
       if (res.ok) {
         const d = await res.json();
+        
         setProjects(d.PROJECTS || []);
+        safeSetItem('cached_projects', JSON.stringify(d.PROJECTS || []));
         
         const rawLinks = (d.EXTERNAL_LINKS || []) as any[];
         const cleanedLinks = rawLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
         setLinks(cleanedLinks);
+        safeSetItem('cached_links', JSON.stringify(cleanedLinks));
         
         // Handle backwards compatibility if server data doesn't have ABOUT or SIDEBAR yet
-        setAbout({
+        const newAbout = {
           ...fallbackAbout,
           ...(d.ABOUT || {}),
           bootConfig: {
             ...fallbackAbout.bootConfig,
             ...(d.ABOUT?.bootConfig || {})
           }
-        });
+        };
+        setAbout(newAbout);
+        safeSetItem('cached_about', JSON.stringify(newAbout));
+        
         setSidebar(d.SIDEBAR || []);
+        safeSetItem('cached_sidebar', JSON.stringify(d.SIDEBAR || []));
       }
     } catch (e) {
       console.error(e);
