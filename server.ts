@@ -503,17 +503,19 @@ async function startServer() {
 
     let tracks = pl.relationships?.tracks?.data ?? [];
     let next = pl.relationships?.tracks?.next;
-    while (next && tracks.length < 300) {
+    let iterations = 0;
+    while (next && tracks.length < 300 && iterations < 5) {
       const r = await fetch(base + next + (next.includes("?") ? "&" : "?") + "l=en-US", { headers });
       if (!r.ok) break;
       const j = await r.json();
       tracks = tracks.concat(j.data ?? []);
       next = j.next;
+      iterations++;
     }
     return { pl, tracks };
   }
 
-  app.get("/api/apple-playlist", async (req, res) => {
+  app.get("/.netlify/functions/apple-playlist", async (req, res) => {
     const id = req.query.id as string;
     const storefront = (req.query.storefront as string) || "us";
     if (!id) return res.status(400).json({ error: "missing ?id=pl...." });

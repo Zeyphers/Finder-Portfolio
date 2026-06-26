@@ -76,7 +76,7 @@ const PlaylistCard: React.FC<{ name: string, url: string, defaultColor: string }
     const id = match ? match[1] : null;
     
     if (id) {
-      fetch(`/api/apple-playlist?id=${encodeURIComponent(id)}`)
+      fetch(`/.netlify/functions/apple-playlist?id=${encodeURIComponent(id)}`)
         .then(async res => {
           if (!res.ok) throw new Error("Network response was not ok");
           const data = await res.json();
@@ -117,7 +117,7 @@ export function MusicApp({ onClose, zIndex }: MusicAppProps) {
     (async () => {
       try {
         // Fetch playlist data
-        const plRes = await fetch('/api/apple-playlist?id=pl.u-jV89aPVCdMkdxbA');
+        const plRes = await fetch('/.netlify/functions/apple-playlist?id=pl.u-jV89aPVCdMkdxbA');
         
         if (plRes.ok) {
           const data = await plRes.json();
