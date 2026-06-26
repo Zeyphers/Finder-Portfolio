@@ -7,6 +7,7 @@ interface DataContextType {
   links: ExternalLink[];
   about: AboutInfo;
   sidebar: SidebarItem[];
+  isDataLoaded: boolean;
   refreshData: () => Promise<void>;
 }
 
@@ -33,6 +34,7 @@ export const DataContext = createContext<DataContextType>({
   links: [],
   about: fallbackAbout,
   sidebar: [],
+  isDataLoaded: false,
   refreshData: async () => {}
 });
 
@@ -49,6 +51,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [links, setLinks] = useState<ExternalLink[]>([]);
   const [about, setAbout] = useState<AboutInfo>(fallbackAbout);
   const [sidebar, setSidebar] = useState<SidebarItem[]>([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const refreshData = async () => {
     try {
@@ -74,6 +77,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsDataLoaded(true);
     }
   };
 
@@ -82,7 +87,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <DataContext.Provider value={{ projects, links, about, sidebar, refreshData }}>
+    <DataContext.Provider value={{ projects, links, about, sidebar, isDataLoaded, refreshData }}>
       {children}
     </DataContext.Provider>
   );

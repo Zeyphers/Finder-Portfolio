@@ -81,7 +81,7 @@ const safeSetItem = (key: string, value: string) => {
 };
 
 export default function Portfolio() {
-  const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR } = useAppletData();
+  const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR, isDataLoaded } = useAppletData();
   
   const isProd = window.location.hostname.includes('netlify.app') || window.location.hostname === 'jake-pay.com' || window.location.hostname === 'www.jake-pay.com';
   
@@ -1054,11 +1054,15 @@ export default function Portfolio() {
 
     </div>
     
-    {about?.bootConfig?.enabled && !bootCompleted && (
-      <BootAnimation 
-        config={about.bootConfig} 
-        onComplete={() => setBootCompleted(true)} 
-      />
+    {!isDataLoaded ? (
+      <div className="fixed inset-0 bg-black z-[9999]"></div>
+    ) : (
+      about?.bootConfig?.enabled && !bootCompleted && (
+        <BootAnimation 
+          config={about.bootConfig} 
+          onComplete={() => setBootCompleted(true)} 
+        />
+      )
     )}
     </>
   );
