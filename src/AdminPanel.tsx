@@ -313,6 +313,23 @@ export function AdminPanel() {
     e.target.value = "";
   };
 
+  const handleAppleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const url = await uploadFileWithChunks(file);
+      setLocalAbout(prev => ({
+        ...prev!,
+        bootConfig: { ...(prev?.bootConfig || { enabled: true, durationMs: 5000 }), appleLogoUrl: url }
+      }));
+    } catch (err: any) {
+      console.error("Upload error", err);
+      alert("Upload error: " + (err.message || String(err)));
+    }
+    e.target.value = "";
+  };
+
   const processFilesForGallery = async (projectId: string, files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
@@ -1085,6 +1102,21 @@ if __name__ == "__main__":
 
                   {localAbout?.bootConfig?.enabled !== false && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Boot Style</label>
+                        <select
+                          value={localAbout?.bootConfig?.style || "verbose"}
+                          onChange={e => setLocalAbout({
+                            ...localAbout,
+                            bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), style: e.target.value as 'verbose' | 'apple' }
+                          })}
+                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none text-sm"
+                        >
+                          <option value="verbose">Verbose (Terminal text)</option>
+                          <option value="apple">Apple (Logo & Loading Bar)</option>
+                        </select>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (ms)</label>
                         <input
@@ -1099,19 +1131,67 @@ if __name__ == "__main__":
                         />
                       </div>
                       
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Text Speed (ms/line)</label>
-                        <input
-                          type="number"
-                          value={localAbout?.bootConfig?.textSpeedMs ?? 50}
-                          onChange={e => setLocalAbout({
-                            ...localAbout,
-                            bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), textSpeedMs: parseInt(e.target.value) || 0 }
-                          })}
-                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
-                          placeholder="50"
-                        />
-                      </div>
+                      {localAbout?.bootConfig?.style !== 'apple' && (
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Text Speed (ms/line)</label>
+                          <input
+                            type="number"
+                            value={localAbout?.bootConfig?.textSpeedMs ?? 50}
+                            onChange={e => setLocalAbout({
+                              ...localAbout,
+                              bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), textSpeedMs: parseInt(e.target.value) || 0 }
+                            })}
+                            className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
+                            placeholder="50"
+                          />
+                        </div>
+                      )}
+
+                      {localAbout?.bootConfig?.style === 'apple' && (
+                        <div className="flex flex-col space-y-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Apple Logo (PNG/SVG)</label>
+                            <div className="flex items-center space-x-2">
+                              {localAbout?.bootConfig?.appleLogoUrl && (
+                                <img src={localAbout.bootConfig.appleLogoUrl} className={`w-8 h-8 object-contain bg-black rounded ${localAbout.bootConfig.invertAppleLogo ? 'invert' : ''}`} alt="Logo preview" />
+                              )}
+                              <label className="cursor-pointer bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-slate-50 transition shadow-sm">
+                                Upload Logo
+                                <input 
+                                  type="file" 
+                                  accept="image/png, image/svg+xml"
+                                  className="hidden" 
+                                  onChange={handleAppleLogoUpload} 
+                                />
+                              </label>
+                              {localAbout?.bootConfig?.appleLogoUrl && (
+                                <button 
+                                  onClick={() => setLocalAbout(prev => ({ ...prev!, bootConfig: { ...prev!.bootConfig!, appleLogoUrl: undefined } }))}
+                                  className="text-xs text-red-500 hover:text-red-700 underline"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="invertAppleLogo"
+                              checked={localAbout?.bootConfig?.invertAppleLogo ?? false}
+                              onChange={e => setLocalAbout({
+                                ...localAbout,
+                                bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), invertAppleLogo: e.target.checked }
+                              })}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="invertAppleLogo" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                              Invert Logo Color (Make black logo white)
+                            </label>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="md:col-span-2">
                         <label className="block text-xs font-semibold text-slate-700 mb-1">Boot Audio URL (MP3/WAV)</label>
@@ -1127,18 +1207,20 @@ if __name__ == "__main__":
                         />
                       </div>
                       
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Boot Text (Optional)</label>
-                        <textarea
-                          value={localAbout?.bootConfig?.customText || ""}
-                          onChange={e => setLocalAbout({
-                            ...localAbout,
-                            bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), customText: e.target.value }
-                          })}
-                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm h-32"
-                          placeholder="Loading system modules...&#10;Mounting /dev/sda1...&#10;Starting GUI..."
-                        />
-                      </div>
+                      {localAbout?.bootConfig?.style !== 'apple' && (
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Boot Text (Optional)</label>
+                          <textarea
+                            value={localAbout?.bootConfig?.customText || ""}
+                            onChange={e => setLocalAbout({
+                              ...localAbout,
+                              bootConfig: { ...(localAbout?.bootConfig || { enabled: true, durationMs: 5000 }), customText: e.target.value }
+                            })}
+                            className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm h-32"
+                            placeholder="Loading system modules...&#10;Mounting /dev/sda1...&#10;Starting GUI..."
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

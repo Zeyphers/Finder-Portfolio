@@ -582,7 +582,7 @@ export default function Portfolio() {
               onClick={e => e.stopPropagation()}
             >
               <div 
-                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 whitespace-pre-wrap [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
+                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 whitespace-pre-wrap break-words [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
                 dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml! }}
               />
             </div>
@@ -940,9 +940,9 @@ export default function Portfolio() {
                     )}
                     <>
                       {/* Desktop Masonry (4 columns) */}
-                      <div className="hidden md:flex flex-row gap-[10px] items-start">
+                      <div className="hidden md:flex flex-row gap-[10px] items-start w-full">
                         {Array.from({length: 4}).map((_, colIndex) => (
-                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px]">
+                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px] min-w-0">
                             {selectedProject.gallery.map((img, index) => {
                               if (index % 4 !== colIndex) return null;
                               const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
@@ -969,9 +969,9 @@ export default function Portfolio() {
                       </div>
                       
                       {/* Mobile Masonry (2 columns) */}
-                      <div className="flex md:hidden flex-row gap-[10px] items-start">
+                      <div className="flex md:hidden flex-row gap-[10px] items-start w-full">
                         {Array.from({length: 2}).map((_, colIndex) => (
-                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px]">
+                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px] min-w-0">
                             {selectedProject.gallery.map((img, index) => {
                               if (index % 2 !== colIndex) return null;
                               const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();

@@ -362,6 +362,9 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
   const [lines, setLines] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  const isAppleStyle = config.style === 'apple';
 
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
@@ -375,62 +378,94 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
       audioRef.current.volume = 0.5;
     }
 
-    const fullText = config.customText || DEFAULT_BOOT_TEXT;
-    const allLines = fullText.split('\n');
-    let currentIndex = 0;
     let isRunning = true;
-    let printTimeout: ReturnType<typeof setTimeout>;
-    
-    // Total duration of animation
+    let timeoutId: ReturnType<typeof setTimeout>;
     const duration = config.durationMs || 5000;
-    
-    // Determine speed per line
-    let baseSpeed = config.textSpeedMs || 50;
-    if (allLines.length * baseSpeed > duration * 0.8) {
-      baseSpeed = (duration * 0.8) / allLines.length;
+
+    if (isAppleStyle) {
+      // Apple style boot logic
+      let currentProgress = 0;
+      
+      const updateProgress = () => {
+        if (!isRunning) return;
+        
+        // Randomly determine the next chunk of progress and the delay
+        const chunk = Math.random() * 15 + 2; // 2% to 17%
+        currentProgress = Math.min(100, currentProgress + chunk);
+        setProgress(currentProgress);
+        
+        if (currentProgress < 100) {
+          // Random delay to simulate realistic loading (stopping/starting)
+          const delay = Math.random() < 0.3 ? Math.random() * 800 + 400 : Math.random() * 300 + 50;
+          timeoutId = setTimeout(updateProgress, delay);
+        } else {
+          timeoutId = setTimeout(() => {
+            if (!isRunning) return;
+            if (audioRef.current) {
+              audioRef.current.play().catch(e => console.warn("Audio autoplay blocked", e));
+            }
+            onCompleteRef.current();
+          }, 400);
+        }
+      };
+      
+      timeoutId = setTimeout(updateProgress, 300);
+      
+    } else {
+      // Verbose boot logic
+      const fullText = config.customText || DEFAULT_BOOT_TEXT;
+      const allLines = fullText.split('\n');
+      let currentIndex = 0;
+      
+      let baseSpeed = config.textSpeedMs || 50;
+      if (allLines.length * baseSpeed > duration * 0.8) {
+        baseSpeed = (duration * 0.8) / allLines.length;
+      }
+
+      const printNextLine = () => {
+        if (!isRunning || currentIndex >= allLines.length) return;
+
+        const lineToAdd = allLines[currentIndex];
+        setLines(prev => [...prev, lineToAdd]);
+        currentIndex++;
+
+        let nextSpeed = baseSpeed;
+        if (Math.random() < 0.15) {
+          nextSpeed += Math.random() * 400 + 100;
+        }
+
+        timeoutId = setTimeout(printNextLine, nextSpeed);
+      };
+
+      timeoutId = setTimeout(printNextLine, baseSpeed);
+
+      const completionTimeout = setTimeout(() => {
+        isRunning = false;
+        clearTimeout(timeoutId);
+        if (audioRef.current) {
+          audioRef.current.play().catch(e => console.warn("Audio autoplay blocked", e));
+        }
+        onCompleteRef.current();
+      }, duration);
+
+      return () => {
+        isRunning = false;
+        clearTimeout(timeoutId);
+        clearTimeout(completionTimeout);
+      };
     }
-
-    const printNextLine = () => {
-      if (!isRunning || currentIndex >= allLines.length) return;
-
-      const lineToAdd = allLines[currentIndex];
-      setLines(prev => [...prev, lineToAdd]);
-      currentIndex++;
-
-      // Random delay to simulate processing
-      let nextSpeed = baseSpeed;
-      if (Math.random() < 0.15) {
-        nextSpeed += Math.random() * 400 + 100;
-      }
-
-      printTimeout = setTimeout(printNextLine, nextSpeed);
-    };
-
-    printTimeout = setTimeout(printNextLine, baseSpeed);
-
-    const completionTimeout = setTimeout(() => {
-      isRunning = false;
-      clearTimeout(printTimeout);
-      if (audioRef.current) {
-        audioRef.current.play().catch(e => console.warn("Audio autoplay blocked", e));
-      }
-      onCompleteRef.current();
-    }, duration);
 
     return () => {
       isRunning = false;
-      clearTimeout(printTimeout);
-      clearTimeout(completionTimeout);
-      // Intentionally not pausing the audio so it plays after the component unmounts
+      clearTimeout(timeoutId);
     };
-  }, [config.durationMs, config.textSpeedMs, config.audioUrl, config.customText]);
+  }, [config.durationMs, config.textSpeedMs, config.audioUrl, config.customText, isAppleStyle]);
 
   useEffect(() => {
-    // Auto-scroll to bottom
-    if (containerRef.current) {
+    if (!isAppleStyle && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [lines]);
+  }, [lines, isAppleStyle]);
 
   const formatLine = (line: string) => {
     if (typeof line !== 'string') return null;
@@ -444,6 +479,40 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
   };
 
   const [hasInteracted, setHasInteracted] = useState(false);
+
+  if (isAppleStyle) {
+    return (
+      <div 
+        className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center select-none"
+        onClick={() => setHasInteracted(true)}
+      >
+        {!hasInteracted && config.audioUrl && (
+          <div className="absolute top-8 left-1/2 -translate-x-1/2 w-max max-w-[90vw] text-xl text-gray-500 flex flex-wrap items-center justify-center gap-2 sm:gap-4 animate-pulse cursor-pointer z-10">
+            <VolumeX size={24} className="shrink-0" /> 
+            <span className="text-center">Click anywhere to unmute</span>
+          </div>
+        )}
+        <div className="flex flex-col items-center justify-center w-full max-w-sm mt-[-10vh]">
+          {/* Apple Logo SVG or Custom Logo */}
+          {config.appleLogoUrl ? (
+            <img src={config.appleLogoUrl} alt="Boot Logo" className={`w-24 h-24 sm:w-32 sm:h-32 mb-16 object-contain ${config.invertAppleLogo ? 'invert' : ''}`} />
+          ) : (
+            <svg className="w-24 h-24 sm:w-32 sm:h-32 text-white mb-16" viewBox="0 0 384 512" fill="currentColor">
+              <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 24 184.8 8 273.7 0 318.5 13.3 408 55.4 466.8 75.4 494.7 99.3 512 127 512c26.5 0 38.6-16.7 70.8-16.7 32 0 42.9 16.7 71 16.7 27.6 0 50.8-16.8 70.2-44.6 23.3-33 34-66.2 34.6-67.6-1.5-.7-54.6-20.9-54.9-130.5M211.3 103.5c19.3-23.7 31.9-55.8 28.5-88-26.3 1-59 16.6-79.3 40.8-17.8 21.2-32 54.7-27.8 86.4 29.5 2.2 61-14.8 78.6-39.2z"/>
+            </svg>
+          )}
+          
+          {/* Progress Bar */}
+          <div className="w-56 h-[5px] bg-[#333333] rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-white rounded-full transition-all duration-300 ease-out" 
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 
@@ -467,3 +536,4 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     </div>
   );
 }
+

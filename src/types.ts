@@ -44,6 +44,9 @@ export interface BootConfig {
   audioUrl?: string;
   customText?: string;
   textSpeedMs?: number;
+  style?: 'verbose' | 'apple';
+  appleLogoUrl?: string;
+  invertAppleLogo?: boolean;
 }
 
 export interface AboutInfo {
