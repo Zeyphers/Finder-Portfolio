@@ -65,14 +65,18 @@ const PlaylistCard = ({ name, url, defaultColor }: { name: string, url: string, 
       .then(async res => {
         if (!res.ok) throw new Error("Network response was not ok");
         const text = await res.text();
-        return JSON.parse(text);
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          throw new Error("Failed to parse response as JSON");
+        }
       })
       .then(data => {
-        if (data.success && data.image) {
+        if (data && data.success && data.image) {
           setImageUrl(data.image.replace(/1200x630[^\/]*\.jpg$/, "600x600cc.jpg"));
         }
       })
-      .catch(console.error);
+      .catch(err => console.warn("Playlist info fetch failed:", err));
   }, [url]);
 
   return (
