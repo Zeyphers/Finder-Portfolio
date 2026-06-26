@@ -11,6 +11,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use((req, res, next) => {
+    console.log(`[REQUEST] ${req.method} ${req.url}`);
     const origin = req.headers.origin;
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);

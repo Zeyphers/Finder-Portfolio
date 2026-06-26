@@ -57,7 +57,7 @@ async function lookup(term: string): Promise<Track | null> {
 const fmt = (s: number) =>
   isNaN(s) ? "0:00" : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-const PlaylistCard = ({ name, url, defaultColor }: { name: string, url: string, defaultColor: string }) => {
+const PlaylistCard: React.FC<{ name: string, url: string, defaultColor: string }> = ({ name, url, defaultColor }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
