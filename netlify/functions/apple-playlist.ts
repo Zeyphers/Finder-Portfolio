@@ -4,7 +4,10 @@ export const handler = async (event: any) => {
   
   const json = (obj: any, statusCode = 200) => ({
     statusCode,
-    headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" },
+    headers: { 
+      "Content-Type": "application/json", 
+      "Cache-Control": statusCode === 200 ? "private, max-age=0" : "no-store" 
+    },
     body: JSON.stringify(obj)
   });
 

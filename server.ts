@@ -530,7 +530,7 @@ async function startServer() {
       const token = await getAppleMusicToken();
       const { pl, tracks } = await fetchApplePlaylist(storefront, id, token);
       
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cache-Control", "private, max-age=0");
       res.json({
         name: pl.attributes?.name ?? "Playlist",
         artwork: fmtArt(pl.attributes?.artwork),
@@ -549,6 +549,7 @@ async function startServer() {
       });
     } catch (e: any) {
       console.error("Apple Playlist error:", e);
+      res.setHeader("Cache-Control", "no-store");
       res.status(502).json({ error: String(e?.message || e) });
     }
   });
