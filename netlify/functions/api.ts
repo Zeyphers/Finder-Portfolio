@@ -351,6 +351,70 @@ router.get("/image-proxy", async (req, res) => {
   }
 });
 
+router.get("/playlist-info", async (req, res) => {
+  const targetUrl = req.query.url as string;
+  if (!targetUrl || !targetUrl.includes("music.apple.com")) {
+    return res.status(400).json({ error: "Invalid or missing url parameter" });
+  }
+  
+  try {
+    const response = await fetch(targetUrl);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Failed to fetch playlist page" });
+    }
+    
+    const html = await response.text();
+    const match = html.match(/<meta property="og:image" content="([^"]+)"/);
+    
+    if (match && match[1]) {
+      res.json({ success: true, image: match[1] });
+    } else {
+      res.status(404).json({ error: "Image not found in metadata" });
+    }
+  } catch (e: any) {
+    console.error("Playlist metadata error:", e);
+    res.status(500).json({ error: "Error fetching playlist info" });
+  }
+});
+
+router.get("/playlist-tracks", async (req, res) => {
+  const targetUrl = req.query.url as string;
+  if (!targetUrl || !targetUrl.includes("music.apple.com")) {
+    return res.status(400).json({ error: "Invalid or missing url parameter" });
+  }
+  
+  try {
+    const response = await fetch(targetUrl);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "Failed to fetch playlist page" });
+    }
+    
+    const html = await response.text();
+    const match = html.match(/<script type="application\/json" id="serialized-server-data">([^<]+)<\/script>/);
+    
+    if (match && match[1]) {
+      try {
+        const data = JSON.parse(match[1]);
+        const trackSection = data.data[0].data.sections.find((s: any) => s.itemKind === "trackLockup");
+        if (trackSection && trackSection.items) {
+          const trackIds = trackSection.items.map((item: any) => {
+            const parts = item.id.split(' - ');
+            return parts[parts.length - 1];
+          }).filter(Boolean);
+          return res.json({ success: true, trackIds });
+        }
+      } catch (e) {
+        console.error("Error parsing playlist JSON:", e);
+      }
+    }
+    
+    res.status(404).json({ error: "Tracks not found in playlist data" });
+  } catch (e: any) {
+    console.error("Playlist track fetch error:", e);
+    res.status(500).json({ error: "Error fetching playlist tracks" });
+  }
+});
+
 // Mount the router under both the /api and /.netlify/functions/api paths
 app.use("/api", router);
 app.use("/.netlify/functions/api", router);
