@@ -905,18 +905,18 @@ export default function Portfolio() {
                             onClick={() => setIsMusicAppOpen(true)}
                             className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
                           >
-                            <div className={`w-[120px] h-[120px] bg-gradient-to-b from-[#df5b69] to-[#b02c3a] rounded-2xl shadow-sm flex items-center justify-center relative mb-2 border border-black/10`}>
+                            <div className={`w-[120px] h-[120px] bg-gradient-to-b from-[#df5b69] to-[#b02c3a] rounded-2xl shadow-sm relative mb-2 border border-black/10 overflow-hidden`}>
                               <svg 
                                 xmlns="http://www.w3.org/2000/svg" 
-                                width="46" 
-                                height="46" 
+                                width="56" 
+                                height="56" 
                                 viewBox="0 0 24 24" 
                                 fill="none" 
                                 stroke="currentColor" 
-                                strokeWidth="2" 
+                                strokeWidth="1.5" 
                                 strokeLinecap="round" 
                                 strokeLinejoin="round" 
-                                className="text-white drop-shadow-md -ml-2 mt-2"
+                                className="text-white drop-shadow-md absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
                               >
                                 <path d="M9 18V5l12-2v13" />
                                 <circle cx="6" cy="18" r="3" fill="currentColor" />

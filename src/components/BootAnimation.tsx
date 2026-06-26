@@ -28,20 +28,23 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     let isRunning = true;
     let timeoutId: ReturnType<typeof setTimeout>;
 
+    const totalDuration = Math.max(100, config.durationMs || 5000);
+    const startTime = Date.now();
+
     // Apple style boot logic
     let currentProgress = 0;
     
     const updateProgress = () => {
       if (!isRunning) return;
       
-      // Randomly determine the next chunk of progress and the delay
-      const chunk = Math.random() * 15 + 2; // 2% to 17%
-      currentProgress = Math.min(100, currentProgress + chunk);
+      const elapsed = Date.now() - startTime;
+      currentProgress = Math.min(100, (elapsed / totalDuration) * 100);
       setProgress(currentProgress);
       
       if (currentProgress < 100) {
-        // Random delay to simulate realistic loading (stopping/starting)
-        const delay = Math.random() < 0.3 ? Math.random() * 800 + 400 : Math.random() * 300 + 50;
+        // Random delay scaled by total duration to keep the stopping/starting effect
+        const maxDelay = totalDuration / 10;
+        const delay = Math.random() < 0.3 ? maxDelay : maxDelay / 4;
         timeoutId = setTimeout(updateProgress, delay);
       } else {
         timeoutId = setTimeout(() => {
@@ -50,11 +53,11 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
             audioRef.current.play().catch(e => console.warn("Audio autoplay blocked", e));
           }
           onCompleteRef.current();
-        }, 400);
+        }, 100);
       }
     };
     
-    timeoutId = setTimeout(updateProgress, 300);
+    timeoutId = setTimeout(updateProgress, Math.min(300, totalDuration / 10));
 
     return () => {
       isRunning = false;

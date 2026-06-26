@@ -449,6 +449,73 @@ async function startServer() {
   // Serve static uploads
   app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
 
+  // API to fetch Apple Music Playlist open graph metadata
+  app.get("/api/playlist-info", async (req, res) => {
+    const targetUrl = req.query.url as string;
+    if (!targetUrl || !targetUrl.includes("music.apple.com")) {
+      return res.status(400).json({ error: "Invalid or missing url parameter" });
+    }
+    
+    try {
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Failed to fetch playlist page" });
+      }
+      
+      const html = await response.text();
+      const match = html.match(/<meta property="og:image" content="([^"]+)"/);
+      
+      if (match && match[1]) {
+        res.json({ success: true, image: match[1] });
+      } else {
+        res.status(404).json({ error: "Image not found in metadata" });
+      }
+    } catch (e: any) {
+      console.error("Playlist metadata error:", e);
+      res.status(500).json({ error: "Error fetching playlist info" });
+    }
+  });
+
+  // API to fetch Apple Music Playlist track IDs
+  app.get("/api/playlist-tracks", async (req, res) => {
+    const targetUrl = req.query.url as string;
+    if (!targetUrl || !targetUrl.includes("music.apple.com")) {
+      return res.status(400).json({ error: "Invalid or missing url parameter" });
+    }
+    
+    try {
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Failed to fetch playlist page" });
+      }
+      
+      const html = await response.text();
+      const match = html.match(/<script type="application\/json" id="serialized-server-data">([^<]+)<\/script>/);
+      
+      if (match && match[1]) {
+        try {
+          const data = JSON.parse(match[1]);
+          const trackSection = data.data[0].data.sections.find((s: any) => s.itemKind === "trackLockup");
+          if (trackSection && trackSection.items) {
+            const trackIds = trackSection.items.map((item: any) => {
+              // Usually the ID looks like "track-lockup - pl.u-XXXXX - 1234567"
+              const parts = item.id.split(' - ');
+              return parts[parts.length - 1];
+            }).filter(Boolean);
+            return res.json({ success: true, trackIds });
+          }
+        } catch (e) {
+          console.error("Error parsing playlist JSON:", e);
+        }
+      }
+      
+      res.status(404).json({ error: "Tracks not found in playlist data" });
+    } catch (e: any) {
+      console.error("Playlist track fetch error:", e);
+      res.status(500).json({ error: "Error fetching playlist tracks" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
