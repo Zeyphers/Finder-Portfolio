@@ -450,70 +450,98 @@ async function startServer() {
   // Serve static uploads
   app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
 
-  // API to fetch Apple Music Playlist open graph metadata
-  app.get("/api/playlist-info", async (req, res) => {
-    const targetUrl = req.query.url as string;
-    if (!targetUrl || !targetUrl.includes("music.apple.com")) {
-      return res.status(400).json({ error: "Invalid or missing url parameter" });
-    }
-    
-    try {
-      const response = await fetch(targetUrl);
-      if (!response.ok) {
-        return res.status(response.status).json({ error: "Failed to fetch playlist page" });
-      }
-      
-      const html = await response.text();
-      const match = html.match(/<meta property="og:image" content="([^"]+)"/);
-      
-      if (match && match[1]) {
-        res.json({ success: true, image: match[1] });
-      } else {
-        res.status(404).json({ error: "Image not found in metadata" });
-      }
-    } catch (e: any) {
-      console.error("Playlist metadata error:", e);
-      res.status(500).json({ error: "Error fetching playlist info" });
-    }
-  });
+  const UA =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
-  // API to fetch Apple Music Playlist track IDs
-  app.get("/api/playlist-tracks", async (req, res) => {
-    const targetUrl = req.query.url as string;
-    if (!targetUrl || !targetUrl.includes("music.apple.com")) {
-      return res.status(400).json({ error: "Invalid or missing url parameter" });
+  let cachedToken: string | null = null;
+  let cachedAt = 0;
+  const TOKEN_TTL = 1000 * 60 * 60 * 12; // 12h
+
+  async function getAppleMusicToken() {
+    if (cachedToken && Date.now() - cachedAt < TOKEN_TTL) return cachedToken;
+    const res = await fetch("https://music.apple.com/us/browse", { headers: { "User-Agent": UA } });
+    const html = await res.text();
+
+    const assets = [...html.matchAll(/\/assets\/[^"']*?\.js/g)].map((m) => m[0]);
+    assets.sort((a, b) => Number(b.includes("index")) - Number(a.includes("index")));
+
+    for (const path of assets.slice(0, 6)) {
+      const jsRes = await fetch("https://music.apple.com" + path, { headers: { "User-Agent": UA } });
+      const js = await jsRes.text();
+      const jwt = js.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+      if (jwt) {
+        cachedToken = jwt[0];
+        cachedAt = Date.now();
+        return cachedToken;
+      }
     }
-    
+    throw new Error("Could not extract Apple Music token");
+  }
+
+  const fmtArt = (a: any) =>
+    a?.url
+      ? a.url.replace(/\{w\}/, "300").replace(/\{h\}/, "300").replace(/\{c\}/, "bb").replace(/\{f\}/, "jpg")
+      : "";
+
+  async function fetchApplePlaylist(storefront: string, id: string, token: string) {
+    const base = "https://amp-api.music.apple.com";
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://music.apple.com",
+      Referer: "https://music.apple.com/",
+      "User-Agent": UA,
+    };
+    const res = await fetch(
+      `${base}/v1/catalog/${storefront}/playlists/${id}?include=tracks&l=en-US`,
+      { headers }
+    );
+    if (!res.ok) throw new Error(`amp-api ${res.status}`);
+    const data = await res.json();
+    const pl = data.data?.[0];
+    if (!pl) throw new Error("Playlist not found");
+
+    let tracks = pl.relationships?.tracks?.data ?? [];
+    let next = pl.relationships?.tracks?.next;
+    while (next && tracks.length < 300) {
+      const r = await fetch(base + next + (next.includes("?") ? "&" : "?") + "l=en-US", { headers });
+      if (!r.ok) break;
+      const j = await r.json();
+      tracks = tracks.concat(j.data ?? []);
+      next = j.next;
+    }
+    return { pl, tracks };
+  }
+
+  app.get("/api/apple-playlist", async (req, res) => {
+    const id = req.query.id as string;
+    const storefront = (req.query.storefront as string) || "us";
+    if (!id) return res.status(400).json({ error: "missing ?id=pl...." });
+
     try {
-      const response = await fetch(targetUrl);
-      if (!response.ok) {
-        return res.status(response.status).json({ error: "Failed to fetch playlist page" });
-      }
+      const token = await getAppleMusicToken();
+      const { pl, tracks } = await fetchApplePlaylist(storefront, id, token);
       
-      const html = await response.text();
-      const match = html.match(/<script type="application\/json" id="serialized-server-data">([^<]+)<\/script>/);
-      
-      if (match && match[1]) {
-        try {
-          const data = JSON.parse(match[1]);
-          const trackSection = data.data[0].data.sections.find((s: any) => s.itemKind === "trackLockup");
-          if (trackSection && trackSection.items) {
-            const trackIds = trackSection.items.map((item: any) => {
-              // Usually the ID looks like "track-lockup - pl.u-XXXXX - 1234567"
-              const parts = item.id.split(' - ');
-              return parts[parts.length - 1];
-            }).filter(Boolean);
-            return res.json({ success: true, trackIds });
-          }
-        } catch (e) {
-          console.error("Error parsing playlist JSON:", e);
-        }
-      }
-      
-      res.status(404).json({ error: "Tracks not found in playlist data" });
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.json({
+        name: pl.attributes?.name ?? "Playlist",
+        artwork: fmtArt(pl.attributes?.artwork),
+        tracks: tracks
+          .filter((t: any) => t.type === "songs")
+          .map((t: any) => ({
+            id: t.id,
+            name: t.attributes?.name,
+            artist: t.attributes?.artistName,
+            album: t.attributes?.albumName,
+            artwork: fmtArt(t.attributes?.artwork),
+            previewUrl: t.attributes?.previews?.[0]?.url ?? "",
+            durationInMillis: t.attributes?.durationInMillis ?? 0,
+          }))
+          .filter((t: any) => t.previewUrl),
+      });
     } catch (e: any) {
-      console.error("Playlist track fetch error:", e);
-      res.status(500).json({ error: "Error fetching playlist tracks" });
+      console.error("Apple Playlist error:", e);
+      res.status(502).json({ error: String(e?.message || e) });
     }
   });
 

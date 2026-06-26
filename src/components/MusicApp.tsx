@@ -8,12 +8,13 @@ interface MusicAppProps {
 }
 
 type Track = {
-  trackId: number;
-  trackName: string;
-  artistName: string;
-  collectionName: string;
-  artworkUrl100: string;
+  id: string;
+  name: string;
+  artist: string;
+  album: string;
+  artwork: string;
   previewUrl: string;
+  durationInMillis: number;
 };
 
 const FEATURED = [
@@ -48,7 +49,17 @@ async function lookup(term: string): Promise<Track | null> {
   )}&entity=song&limit=1`;
   try {
     const data = await (await fetch(url)).json();
-    return data.results?.[0] ?? null;
+    const t = data.results?.[0];
+    if (!t) return null;
+    return {
+      id: t.trackId,
+      name: t.trackName,
+      artist: t.artistName,
+      album: t.collectionName,
+      artwork: t.artworkUrl100,
+      previewUrl: t.previewUrl,
+      durationInMillis: t.trackTimeMillis,
+    };
   } catch {
     return null;
   }
@@ -61,22 +72,20 @@ const PlaylistCard: React.FC<{ name: string, url: string, defaultColor: string }
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/playlist-info?url=${encodeURIComponent(url)}`)
-      .then(async res => {
-        if (!res.ok) throw new Error("Network response was not ok");
-        const text = await res.text();
-        try {
-          return JSON.parse(text);
-        } catch (e) {
-          throw new Error("Failed to parse response as JSON");
-        }
-      })
-      .then(data => {
-        if (data && data.success && data.image) {
-          setImageUrl(data.image.replace(/1200x630[^\/]*\.jpg$/, "600x600cc.jpg"));
-        }
-      })
-      .catch(err => console.warn("Playlist info fetch failed:", err));
+    const match = url.match(/(pl\.[a-zA-Z0-9_-]+)/);
+    const id = match ? match[1] : null;
+    
+    if (id) {
+      fetch(`/api/apple-playlist?id=${encodeURIComponent(id)}`)
+        .then(async res => {
+          if (!res.ok) throw new Error("Network response was not ok");
+          const data = await res.json();
+          if (data && !data.error && data.artwork) {
+            setImageUrl(data.artwork);
+          }
+        })
+        .catch(err => console.warn("Playlist info fetch failed:", err));
+    }
   }, [url]);
 
   return (
@@ -107,42 +116,26 @@ export function MusicApp({ onClose, zIndex }: MusicAppProps) {
     let alive = true;
     (async () => {
       try {
-        // Fetch track IDs from the custom playlist
-        const plRes = await fetch('/api/playlist-tracks?url=' + encodeURIComponent('https://music.apple.com/us/playlist/favorite-songs/pl.u-jV89aPVCdMkdxbA'));
-        let plData = { success: false, trackIds: [] };
+        // Fetch playlist data
+        const plRes = await fetch('/api/apple-playlist?id=pl.u-jV89aPVCdMkdxbA');
+        
         if (plRes.ok) {
-          const text = await plRes.text();
-          try {
-            plData = JSON.parse(text);
-          } catch (e) {
-            console.error("Failed to parse playlist-tracks response as JSON", text.substring(0, 100));
+          const data = await plRes.json();
+          if (alive && data && !data.error && data.tracks && data.tracks.length > 0) {
+            // Shuffle and pick 6 tracks
+            const shuffledTracks = [...data.tracks].sort(() => 0.5 - Math.random()).slice(0, 6);
+            setTracks(shuffledTracks);
+            setLoading(false);
+            return;
           }
         }
         
-        let trackIds: string[] = [];
-        if (plData.success && plData.trackIds && plData.trackIds.length > 0) {
-          // Shuffle and pick 6 tracks
-          trackIds = [...plData.trackIds].sort(() => 0.5 - Math.random()).slice(0, 6);
-        }
-
-        if (trackIds.length > 0) {
-          // Fetch track details from iTunes API
-          const lookupUrl = `https://itunes.apple.com/lookup?id=${trackIds.join(',')}`;
-          const lookupRes = await fetch(lookupUrl);
-          const lookupData = await lookupRes.json();
-          
-          if (alive && lookupData.results) {
-            setTracks(lookupData.results.filter((t: Track) => !!t?.previewUrl));
-            setLoading(false);
-          }
-        } else {
-          // Fallback to featured
-          const shuffled = [...FEATURED].sort(() => 0.5 - Math.random()).slice(0, 5);
-          const results = await Promise.all(shuffled.map(lookup));
-          if (alive) {
-            setTracks(results.filter((t): t is Track => !!t?.previewUrl));
-            setLoading(false);
-          }
+        // Fallback to featured if API fails or returns no tracks
+        const shuffled = [...FEATURED].sort(() => 0.5 - Math.random()).slice(0, 5);
+        const results = await Promise.all(shuffled.map(lookup));
+        if (alive) {
+          setTracks(results.filter((t): t is Track => !!t?.previewUrl));
+          setLoading(false);
         }
       } catch (err) {
         console.error(err);
@@ -280,12 +273,12 @@ export function MusicApp({ onClose, zIndex }: MusicAppProps) {
                     const active = current === i;
                     return (
                       <li
-                        key={t.trackId}
+                        key={t.id}
                         className={`ma-track${active ? " active" : ""}`}
                         onClick={() => play(i)}
                       >
                         <div className="relative overflow-hidden rounded-md flex-none">
-                          <img src={hiRes(t.artworkUrl100)} alt="" className="w-[36px] h-[36px] object-cover" loading="lazy" />
+                          <img src={hiRes(t.artwork)} alt="" className="w-[36px] h-[36px] object-cover" loading="lazy" />
                           {active && playing && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <span className="text-white text-[10px] drop-shadow-md">❚❚</span>
@@ -293,9 +286,9 @@ export function MusicApp({ onClose, zIndex }: MusicAppProps) {
                           )}
                         </div>
                         <div className="ma-meta">
-                          <span className="ma-name text-sm">{t.trackName}</span>
+                          <span className="ma-name text-sm">{t.name}</span>
                           <span className="ma-artist text-[11px]">
-                            {t.artistName}
+                            {t.artist}
                           </span>
                         </div>
                         <span className="ma-icon">
@@ -325,10 +318,10 @@ export function MusicApp({ onClose, zIndex }: MusicAppProps) {
 
           {cur && (
             <footer className="ma-now">
-              <img src={hiRes(cur.artworkUrl100)} alt="" />
+              <img src={hiRes(cur.artwork)} alt="" />
               <div className="ma-now-meta">
-                <span className="ma-name">{cur.trackName}</span>
-                <span className="ma-artist">{cur.artistName}</span>
+                <span className="ma-name">{cur.name}</span>
+                <span className="ma-artist">{cur.artist}</span>
                 <div className="ma-scrub">
                   <span>{fmt(time)}</span>
                   <input
