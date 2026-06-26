@@ -460,23 +460,29 @@ async function startServer() {
 
   async function getAppleMusicToken() {
     if (cachedToken && Date.now() - cachedAt < TOKEN_TTL) return cachedToken;
-    const res = await fetch("https://music.apple.com/us/browse", { headers: { "User-Agent": UA } });
+    const res = await fetch("https://music.apple.com/", {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      }
+    });
     const html = await res.text();
 
-    const assets = [...html.matchAll(/\/assets\/[^"']*?\.js/g)].map((m) => m[0]);
-    assets.sort((a, b) => Number(b.includes("index")) - Number(a.includes("index")));
+    const bundleMatch = html.match(/src="(\/assets\/index~[^"]+\.js)"/);
+    if (!bundleMatch) throw new Error('Could not find JS bundle URL in music.apple.com HTML');
+    const bundleUrl = 'https://music.apple.com' + bundleMatch[1];
 
-    for (const path of assets.slice(0, 6)) {
-      const jsRes = await fetch("https://music.apple.com" + path, { headers: { "User-Agent": UA } });
-      const js = await jsRes.text();
-      const jwt = js.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
-      if (jwt) {
-        cachedToken = jwt[0];
-        cachedAt = Date.now();
-        return cachedToken;
-      }
-    }
-    throw new Error("Could not extract Apple Music token");
+    const jsRes = await fetch(bundleUrl, { headers: { "User-Agent": UA } });
+    const js = await jsRes.text();
+    
+    const tokenMatch = js.match(
+      /[a-zA-Z_$]{1,4}="(eyJ[A-Za-z0-9_-]{50,}\.[A-Za-z0-9_-]{50,}\.[A-Za-z0-9_-]{20,})"/
+    );
+    if (!tokenMatch) throw new Error('Could not extract bearer token from JS bundle');
+    
+    cachedToken = tokenMatch[1];
+    cachedAt = Date.now();
+    return cachedToken;
   }
 
   const fmtArt = (a: any) =>

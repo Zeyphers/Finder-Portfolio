@@ -13,17 +13,31 @@ export const handler = async (event: any) => {
   const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
   try {
-    const pageRes = await fetch('https://music.apple.com/us/playlist/' + id, {
-      headers: { 'User-Agent': UA }
+    // Step 1: Find the current JS bundle URL from music.apple.com homepage
+    const pageRes = await fetch('https://music.apple.com/', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
     });
     const html = await pageRes.text();
 
-    const configMatch = html.match(/<meta name="desktop-music-app\/config\/environment" content="([^"]+)"/);
-    if (!configMatch) throw new Error('Could not find config meta tag');
-    
-    const config = JSON.parse(decodeURIComponent(configMatch[1]));
-    const token = config.MEDIA_API?.token;
-    if (!token) throw new Error('Could not extract bearer token');
+    const bundleMatch = html.match(/src="(\/assets\/index~[^"]+\.js)"/);
+    if (!bundleMatch) throw new Error('Could not find JS bundle URL in music.apple.com HTML');
+    const bundleUrl = 'https://music.apple.com' + bundleMatch[1];
+
+    // Step 2: Fetch the bundle and extract the bearer token
+    const bundleRes = await fetch(bundleUrl, {
+      headers: { 'User-Agent': UA },
+    });
+    const bundleText = await bundleRes.text();
+
+    // Token is embedded as: someVar="eyJ..."
+    const tokenMatch = bundleText.match(
+      /[a-zA-Z_$]{1,4}="(eyJ[A-Za-z0-9_-]{50,}\.[A-Za-z0-9_-]{50,}\.[A-Za-z0-9_-]{20,})"/
+    );
+    if (!tokenMatch) throw new Error('Could not extract bearer token from JS bundle');
+    const token = tokenMatch[1];
 
     const base = "https://amp-api.music.apple.com";
     const headers = {
