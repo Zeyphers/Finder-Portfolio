@@ -62,7 +62,11 @@ const PlaylistCard = ({ name, url, defaultColor }: { name: string, url: string, 
 
   useEffect(() => {
     fetch(`/api/playlist-info?url=${encodeURIComponent(url)}`)
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) throw new Error("Network response was not ok");
+        const text = await res.text();
+        return JSON.parse(text);
+      })
       .then(data => {
         if (data.success && data.image) {
           setImageUrl(data.image.replace(/1200x630[^\/]*\.jpg$/, "600x600cc.jpg"));
@@ -101,7 +105,15 @@ export function MusicApp({ onClose, zIndex }: MusicAppProps) {
       try {
         // Fetch track IDs from the custom playlist
         const plRes = await fetch('/api/playlist-tracks?url=' + encodeURIComponent('https://music.apple.com/us/playlist/favorite-songs/pl.u-jV89aPVCdMkdxbA'));
-        const plData = await plRes.json();
+        let plData = { success: false, trackIds: [] };
+        if (plRes.ok) {
+          const text = await plRes.text();
+          try {
+            plData = JSON.parse(text);
+          } catch (e) {
+            console.error("Failed to parse playlist-tracks response as JSON", text.substring(0, 100));
+          }
+        }
         
         let trackIds: string[] = [];
         if (plData.success && plData.trackIds && plData.trackIds.length > 0) {
