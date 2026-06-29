@@ -34,12 +34,18 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
 
   const fitClass = objectFit === "contain" ? "object-contain" : "object-cover";
 
+  // If this image has already been seen/preloaded, render it eagerly and decode
+  // it synchronously so it paints in a single frame when switching folders —
+  // no placeholder flash or "half-loaded" pop-in. Only not-yet-seen images use
+  // the lazy/async progressive path with a placeholder.
+  const isCached = src ? loadedImagesCache.has(src) : false;
+
   return (
     <div className={`relative ${containerClassName || className || ""}`}>
-      {/* Loading Placeholder */}
-      {objectFit !== "contain" ? (
-        <div 
-          className={`absolute inset-0 bg-slate-200/50 dark:bg-slate-700/50 animate-pulse rounded-[inherit] transition-opacity duration-300 ${loaded ? "opacity-0 pointer-events-none" : "opacity-100"}`} 
+      {/* Loading Placeholder (skipped entirely for already-cached images) */}
+      {!isCached && (objectFit !== "contain" ? (
+        <div
+          className={`absolute inset-0 bg-slate-200/50 dark:bg-slate-700/50 animate-pulse rounded-[inherit] transition-opacity duration-300 ${loaded ? "opacity-0 pointer-events-none" : "opacity-100"}`}
         />
       ) : (
         !loaded && (
@@ -47,15 +53,15 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
             <div className="w-8 h-8 border-4 border-slate-300/30 border-t-slate-400/80 rounded-full animate-spin" />
           </div>
         )
-      )}
-      
+      ))}
+
       {/* High Quality Image */}
       <img
          src={src}
          alt={alt}
-         loading="lazy"
-         decoding="async"
-         className={`${className || ""} relative z-10 transition-opacity duration-300 ${fitClass} ${loaded ? "opacity-100" : "opacity-0"}`}
+         loading={isCached ? "eager" : "lazy"}
+         decoding={isCached ? "sync" : "async"}
+         className={`${className || ""} relative z-10 ${fitClass} ${isCached ? "opacity-100" : `transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}`}
          onLoad={handleLoad}
          {...props}
       />
