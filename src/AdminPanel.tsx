@@ -102,18 +102,14 @@ export function AdminPanel() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Attempting login at URL: ", getApiUrl("/api/login"));
-    console.log("Payload:", { username, password });
     try {
       const res = await fetch(getApiUrl("/api/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
-      console.log("Login response status: ", res.status);
       const data = await res.json();
-      console.log("Login response data: ", data);
-      
+
       if (data.success) {
         safeSetItem("adminToken", data.token);
         setToken(data.token);

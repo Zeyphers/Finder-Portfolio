@@ -1,11 +1,13 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
 import { FolderIcon } from "./components/FolderIcon";
-import { TextEditModal } from "./components/TextEditModal";
-import { MemoryGameApp } from "./components/MemoryGameApp";
-import { MusicApp } from "./components/MusicApp";
-import { ContactApp } from "./components/ContactApp";
 import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
 import BootAnimation from "./components/BootAnimation";
+
+// These windows only mount when the user opens them, so load their code on demand.
+const TextEditModal = lazy(() => import("./components/TextEditModal").then(m => ({ default: m.TextEditModal })));
+const MemoryGameApp = lazy(() => import("./components/MemoryGameApp").then(m => ({ default: m.MemoryGameApp })));
+const MusicApp = lazy(() => import("./components/MusicApp").then(m => ({ default: m.MusicApp })));
+const ContactApp = lazy(() => import("./components/ContactApp").then(m => ({ default: m.ContactApp })));
 // Import data context for global state
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
@@ -488,28 +490,36 @@ export default function Portfolio() {
       {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
       <AnimatePresence>
         {isAboutMeOpen && (
-          <TextEditModal onClose={() => setIsAboutMeOpen(false)} isDark={isDark} />
+          <Suspense fallback={null}>
+            <TextEditModal onClose={() => setIsAboutMeOpen(false)} isDark={isDark} />
+          </Suspense>
         )}
       </AnimatePresence>
 
       {/* 6. Memory Game App */}
       <AnimatePresence>
         {isMemoryGameOpen && (
-          <MemoryGameApp onClose={() => setIsMemoryGameOpen(false)} projects={PROJECTS} isDark={isDark} />
+          <Suspense fallback={null}>
+            <MemoryGameApp onClose={() => setIsMemoryGameOpen(false)} projects={PROJECTS} isDark={isDark} />
+          </Suspense>
         )}
       </AnimatePresence>
 
       {/* 6.5 Music App */}
       <AnimatePresence>
         {isMusicAppOpen && (
-          <MusicApp onClose={() => setIsMusicAppOpen(false)} zIndex={999} />
+          <Suspense fallback={null}>
+            <MusicApp onClose={() => setIsMusicAppOpen(false)} zIndex={999} />
+          </Suspense>
         )}
       </AnimatePresence>
 
       {/* Contact Me App */}
       <AnimatePresence>
         {isContactAppOpen && (
-          <ContactApp onClose={() => setIsContactAppOpen(false)} isDark={isDark} />
+          <Suspense fallback={null}>
+            <ContactApp onClose={() => setIsContactAppOpen(false)} isDark={isDark} />
+          </Suspense>
         )}
       </AnimatePresence>
 

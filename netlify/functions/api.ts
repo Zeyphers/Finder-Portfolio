@@ -5,6 +5,69 @@ import { getStore } from "@netlify/blobs";
 import multer from "multer";
 import defaultData from "../../src/data.json";
 import { Resend } from "resend";
+import crypto from "crypto";
+import dns from "dns";
+import net from "net";
+
+// --- Auth: stateless HMAC-signed tokens (no static/guessable token) ---
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function signToken(username: string): string {
+  const secret = process.env.AUTH_SECRET || "";
+  const payload = Buffer.from(
+    JSON.stringify({ u: username, exp: Date.now() + TOKEN_TTL_MS })
+  ).toString("base64url");
+  const sig = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+function verifyToken(token: string): boolean {
+  const secret = process.env.AUTH_SECRET || "";
+  if (!secret) return false;
+  const parts = token.split(".");
+  if (parts.length !== 2) return false;
+  const [payload, sig] = parts;
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return false;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+    return typeof data.exp === "number" && Date.now() <= data.exp;
+  } catch {
+    return false;
+  }
+}
+
+// --- SSRF guard: reject internal/private targets for the image proxy ---
+function isPrivateIp(ip: string): boolean {
+  const v = ip.replace(/^::ffff:/i, "");
+  if (net.isIPv4(v)) {
+    const [a, b] = v.split(".").map(Number);
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true; // link-local + cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    return false;
+  }
+  const lower = ip.toLowerCase();
+  return lower === "::1" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80");
+}
+
+async function isSafeImageUrl(targetUrl: string): Promise<boolean> {
+  let parsed: URL;
+  try { parsed = new URL(targetUrl); } catch { return false; }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return false;
+  if (net.isIP(host)) return !isPrivateIp(host);
+  try {
+    const { address } = await dns.promises.lookup(host);
+    return !isPrivateIp(address);
+  } catch {
+    return false;
+  }
+}
 
 const app = express();
 
@@ -98,19 +161,25 @@ router.post("/contact", async (req, res) => {
 
 router.post("/login", (req, res) => {
   const { username, password } = req.body;
-  const validUser = process.env.ADMIN_USERNAME || "jake";
-  const validPass = process.env.ADMIN_PASSWORD || "DexHan101";
-  
+  const validUser = process.env.ADMIN_USERNAME;
+  const validPass = process.env.ADMIN_PASSWORD;
+
+  // Fail closed: no public default credentials, and a signing secret is required.
+  if (!validUser || !validPass || !process.env.AUTH_SECRET) {
+    return res.status(500).json({ success: false, message: "Server auth is not configured" });
+  }
+
   if (username === validUser && password === validPass) {
-    res.json({ success: true, token: "admin-token-123" });
+    res.json({ success: true, token: signToken(username) });
   } else {
     res.status(401).json({ success: false, message: "Invalid credentials" });
   }
 });
 
 const requireAuth = (req: any, res: any, next: any) => {
-  const token = req.headers.authorization;
-  if (token === "Bearer admin-token-123") {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (token && verifyToken(token)) {
     next();
   } else {
     res.status(401).json({ error: "Unauthorized" });
@@ -336,7 +405,11 @@ router.get("/image-proxy", async (req, res) => {
      res.redirect(targetUrl);
      return;
   }
-  
+
+  if (!(await isSafeImageUrl(targetUrl))) {
+    return res.status(400).send("Blocked URL");
+  }
+
   try {
     const upstreamRes = await fetch(targetUrl);
     if (!upstreamRes.ok) {
