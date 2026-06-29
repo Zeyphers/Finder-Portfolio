@@ -1,70 +1,109 @@
 import React, { useState, useEffect } from "react";
 
-// Global cache to keep track of already loaded images
+// Global cache of image srcs that have fully loaded this session.
 export const loadedImagesCache = new Set<string>();
+
+// Per-image average colour, used as a solid placeholder until the full image is ready.
+// Persisted to localStorage so on return visits the colour is known instantly (it's tiny),
+// even while a large image is still downloading.
+const AVG_KEY = "img_avg_colors_v1";
+export const imageAvgColors: Record<string, string> = (() => {
+  try { return JSON.parse(localStorage.getItem(AVG_KEY) || "{}"); } catch { return {}; }
+})();
+
+let avgSaveTimer: ReturnType<typeof setTimeout> | null = null;
+const persistAvgColors = () => {
+  if (avgSaveTimer) return;
+  avgSaveTimer = setTimeout(() => {
+    avgSaveTimer = null;
+    try { localStorage.setItem(AVG_KEY, JSON.stringify(imageAvgColors)); } catch {}
+  }, 500);
+};
+
+// Downsample the image to 1x1 to get its average colour. Same-origin/proxied images are
+// canvas-clean; if a source taints the canvas we just skip it (placeholder stays neutral).
+export const computeAvgColor = (imgEl: HTMLImageElement, key: string): string | undefined => {
+  if (imageAvgColors[key]) return imageAvgColors[key];
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return undefined;
+    ctx.drawImage(imgEl, 0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    const color = `rgb(${r}, ${g}, ${b})`;
+    imageAvgColors[key] = color;
+    persistAvgColors();
+    return color;
+  } catch {
+    return undefined;
+  }
+};
 
 interface ProgressiveImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   containerClassName?: string;
   objectFit?: "cover" | "contain";
 }
 
-export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({ 
-  src, 
-  alt, 
+export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
+  src,
+  alt,
   className,
   containerClassName,
   objectFit = "cover",
-  ...props 
+  ...props
 }) => {
-  const [loaded, setLoaded] = useState(() => src ? loadedImagesCache.has(src) : false);
+  const [loaded, setLoaded] = useState(() => !!src && loadedImagesCache.has(src));
+  const [avg, setAvg] = useState<string | undefined>(() => (src ? imageAvgColors[src] : undefined));
 
+  // Load the image OFF-SCREEN and only mount the visible <img> once it's fully decoded.
+  // This avoids the browser's partial top-to-bottom paint — the image appears in one frame.
   useEffect(() => {
-    if (!src) return;
-    if (loadedImagesCache.has(src)) {
+    if (!src) { setLoaded(false); return; }
+    if (imageAvgColors[src]) setAvg(imageAvgColors[src]);
+
+    if (loadedImagesCache.has(src)) { setLoaded(true); return; }
+
+    setLoaded(false);
+    let cancelled = false;
+    const loader = new Image();
+    loader.onload = () => {
+      if (cancelled) return;
+      loadedImagesCache.add(src);
+      const c = computeAvgColor(loader, src);
+      if (c) setAvg(c);
       setLoaded(true);
-    } else {
-      setLoaded(false);
-    }
+    };
+    loader.onerror = () => { if (!cancelled) setLoaded(true); };
+    loader.src = src;
+    return () => { cancelled = true; };
   }, [src]);
 
-  const handleLoad = () => {
-    if (src) loadedImagesCache.add(src);
-    setLoaded(true);
-  };
-
   const fitClass = objectFit === "contain" ? "object-contain" : "object-cover";
-
-  // If this image has already been seen/preloaded, render it eagerly and decode
-  // it synchronously so it paints in a single frame when switching folders —
-  // no placeholder flash or "half-loaded" pop-in. Only not-yet-seen images use
-  // the lazy/async progressive path with a placeholder.
-  const isCached = src ? loadedImagesCache.has(src) : false;
+  // Don't paint a solid colour box behind transparent "contain" icons.
+  const showColor = objectFit !== "contain";
 
   return (
-    <div className={`relative ${containerClassName || className || ""}`}>
-      {/* Loading Placeholder (skipped entirely for already-cached images) */}
-      {!isCached && (objectFit !== "contain" ? (
+    <div className={`relative overflow-hidden ${containerClassName || className || ""}`}>
+      {/* Average-colour placeholder, shown until the full image is ready */}
+      {!loaded && (
         <div
-          className={`absolute inset-0 bg-slate-200/50 dark:bg-slate-700/50 animate-pulse rounded-[inherit] transition-opacity duration-300 ${loaded ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+          className={`absolute inset-0 rounded-[inherit] ${avg && showColor ? "" : (showColor ? "bg-slate-300/40 dark:bg-slate-600/40" : "")}`}
+          style={avg && showColor ? { backgroundColor: avg } : undefined}
         />
-      ) : (
-        !loaded && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 border-4 border-slate-300/30 border-t-slate-400/80 rounded-full animate-spin" />
-          </div>
-        )
-      ))}
+      )}
 
-      {/* High Quality Image */}
-      <img
-         src={src}
-         alt={alt}
-         loading={isCached ? "eager" : "lazy"}
-         decoding={isCached ? "sync" : "async"}
-         className={`${className || ""} relative z-10 ${fitClass} ${isCached ? "opacity-100" : `transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}`}
-         onLoad={handleLoad}
-         {...props}
-      />
+      {/* Full image: only mounted once fully decoded, so it swaps in a single frame */}
+      {loaded && src && (
+        <img
+          src={src}
+          alt={alt}
+          decoding="sync"
+          className={`${className || ""} relative z-10 ${fitClass}`}
+          {...props}
+        />
+      )}
     </div>
   );
 };

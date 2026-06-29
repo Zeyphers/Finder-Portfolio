@@ -29,6 +29,7 @@ export interface Project {
   imageUrl: string;
   folderIconImage?: string;
   parentId?: string; // id of the containing folder; empty/undefined = top-level
+  bottomText?: string; // footer text shown at the bottom; subfolders inherit from parent
   features: string[];
   gallery: GalleryImage[];
   wordpressCode: {
@@ -57,6 +58,7 @@ export interface AboutInfo {
   contact: string;
   signoff: string;
   tabIconUrl?: string;
+  errorSoundUrl?: string; // played when clicking an image that hasn't finished loading (MP3/WAV)
   disableContactCooldown?: boolean;
   autoBackupIntervalHrs?: number;
   bootConfig?: BootConfig;

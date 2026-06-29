@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
 import { FolderIcon } from "./components/FolderIcon";
-import { ProgressiveImage, loadedImagesCache } from "./components/ProgressiveImage";
+import { ProgressiveImage, loadedImagesCache, computeAvgColor } from "./components/ProgressiveImage";
 import BootAnimation from "./components/BootAnimation";
+import { playErrorSound, setErrorSoundUrl } from "./sound";
 
 // These windows only mount when the user opens them, so load their code on demand.
 const TextEditModal = lazy(() => import("./components/TextEditModal").then(m => ({ default: m.TextEditModal })));
@@ -148,8 +149,15 @@ const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedPro
             const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
             return (
               <div key={`img-${index}`} className="w-full">
-                <div onClick={() => onImageClick(index)} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
-                  <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
+                <div
+                  onClick={() => {
+                    // Check load state at click time so it reflects the latest status.
+                    if (img.isVideo || loadedImagesCache.has(getImageUrl(img.url))) onImageClick(index);
+                    else playErrorSound();
+                  }}
+                  className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}
+                >
+                  <div className="w-full relative p-1" style={{ aspectRatio: img.isVideo ? "16 / 9" : (imageAspectRatios[img.url] ? `${imageAspectRatios[img.url]}` : "1 / 1") }}>
                     <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
                     {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
                   </div>
@@ -193,6 +201,11 @@ export default function Portfolio() {
       link.href = about.tabIconUrl;
     }
   }, [about?.tabIconUrl]);
+
+  // Keep the image-click error sound in sync with the admin Settings value.
+  useEffect(() => {
+    setErrorSoundUrl(about?.errorSoundUrl);
+  }, [about?.errorSoundUrl]);
   
   // Preload image dimensions so masonry doesn't jump
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
@@ -211,6 +224,7 @@ export default function Portfolio() {
         };
       }
       p.gallery.forEach(img => {
+        if (img.isVideo) return;
         if (!preloadedRef.current.has(img.url)) {
           preloadedRef.current.add(img.url);
           const i = new Image();
@@ -218,6 +232,8 @@ export default function Portfolio() {
           i.src = pUrl;
           i.onload = () => {
             loadedImagesCache.add(pUrl);
+            // Capture the average colour now so the placeholder can use it later.
+            computeAvgColor(i, pUrl);
             if (i.width && i.height) {
               setImageAspectRatios(prev => ({ ...prev, [img.url]: i.width / i.height }));
             }
@@ -519,6 +535,19 @@ export default function Portfolio() {
     [selectedProject, PROJECTS]
   );
 
+  // Bottom/footer text: use the folder's own, else inherit the nearest ancestor's.
+  const getInheritedBottomText = (project: Project): string | undefined => {
+    const seen = new Set<string>();
+    let cur: Project | undefined = project;
+    while (cur && !seen.has(cur.id)) {
+      const t = (cur.bottomText || "").trim();
+      if (t && t !== "<p><br></p>") return cur.bottomText;
+      seen.add(cur.id);
+      cur = cur.parentId ? PROJECTS.find(p => p.id === cur!.parentId) : undefined;
+    }
+    return undefined;
+  };
+
   // Walk the parentId chain to build a breadcrumb trail [root … current].
   const getAncestry = (id: string): Project[] => {
     const chain: Project[] = [];
@@ -744,7 +773,7 @@ export default function Portfolio() {
               onClick={e => e.stopPropagation()}
             >
               <div 
-                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 whitespace-pre-wrap break-words [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
+                className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 whitespace-pre-wrap break-normal [overflow-wrap:normal] [word-break:normal] [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
                 dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml! }}
               />
             </div>
@@ -1136,43 +1165,59 @@ export default function Portfolio() {
 
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
                   <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full p-2.5">
-                    {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && selectedProject.description.trim() !== "<p><br></p>" && (
-                      <div
-                        className={`mb-6 mt-2 px-2 w-full text-sm sm:text-[15px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
-                        dangerouslySetInnerHTML={{ __html: selectedProject.description }}
-                      />
-                    )}
+                    <div className="flex flex-col min-h-full">
+                      <div>
+                        {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && selectedProject.description.trim() !== "<p><br></p>" && (
+                          <div
+                            className={`mb-6 mt-2 px-2 w-full text-sm sm:text-[15px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
+                            dangerouslySetInnerHTML={{ __html: selectedProject.description }}
+                          />
+                        )}
 
-                    {/* Subfolders are mixed into the gallery (folders first, then files) — Finder-style */}
-                    {(childFolders.length > 0 || selectedProject.gallery.length > 0) && (
-                      <>
-                        {/* Desktop Masonry (4 columns) */}
-                        <MasonryGrid
-                          columns={4}
-                          images={selectedProject.gallery}
-                          folders={childFolders}
-                          onFolderClick={navigateTo}
-                          selectedProjectName={selectedProject.name}
-                          imageAspectRatios={imageAspectRatios}
-                          textMutedStyle={styles.textMuted}
-                          onImageClick={setLightboxIndex}
-                          className="hidden md:flex"
-                        />
+                        {/* Subfolders are mixed into the gallery (folders first, then files) — Finder-style */}
+                        {(childFolders.length > 0 || selectedProject.gallery.length > 0) && (
+                          <>
+                            {/* Desktop Masonry (4 columns) */}
+                            <MasonryGrid
+                              columns={4}
+                              images={selectedProject.gallery}
+                              folders={childFolders}
+                              onFolderClick={navigateTo}
+                              selectedProjectName={selectedProject.name}
+                              imageAspectRatios={imageAspectRatios}
+                              textMutedStyle={styles.textMuted}
+                              onImageClick={setLightboxIndex}
+                              className="hidden md:flex"
+                            />
 
-                        {/* Mobile Masonry (2 columns) */}
-                        <MasonryGrid
-                          columns={2}
-                          images={selectedProject.gallery}
-                          folders={childFolders}
-                          onFolderClick={navigateTo}
-                          selectedProjectName={selectedProject.name}
-                          imageAspectRatios={imageAspectRatios}
-                          textMutedStyle={styles.textMuted}
-                          onImageClick={setLightboxIndex}
-                          className="flex md:hidden"
-                        />
-                      </>
-                    )}
+                            {/* Mobile Masonry (2 columns) */}
+                            <MasonryGrid
+                              columns={2}
+                              images={selectedProject.gallery}
+                              folders={childFolders}
+                              onFolderClick={navigateTo}
+                              selectedProjectName={selectedProject.name}
+                              imageAspectRatios={imageAspectRatios}
+                              textMutedStyle={styles.textMuted}
+                              onImageClick={setLightboxIndex}
+                              className="flex md:hidden"
+                            />
+                          </>
+                        )}
+                      </div>
+
+                      {/* Inherited bottom/footer text — centered, pinned to the very bottom
+                          (above the status bar) when the images don't fill the page. */}
+                      {(() => {
+                        const bottom = getInheritedBottomText(selectedProject);
+                        return bottom ? (
+                          <div
+                            className={`mt-auto pt-10 pb-2 px-4 w-full text-center text-sm sm:text-[15px] leading-relaxed ${styles.textMuted} [&_strong]:font-bold [&_em]:italic [&_u]:underline [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>p]:mb-2 [&>ul]:list-disc [&>ul]:inline-block [&>ul]:text-left`}
+                            dangerouslySetInnerHTML={{ __html: bottom }}
+                          />
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
 
                 </motion.div>

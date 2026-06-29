@@ -6,6 +6,7 @@ import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { ProgressiveImage } from "./components/ProgressiveImage";
 import { ProcessEditorModal } from "./components/ProcessEditorModal";
+import { FormattedTextarea } from "./components/FormattedTextarea";
 import { Reorder } from "motion/react";
 
 // Safe localStorage wrappers to prevent iframe cross-origin DOMException
@@ -837,12 +838,12 @@ if __name__ == "__main__":
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1 min-w-0">
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description (HTML)</label>
-                      <textarea 
-                        value={project.description || ""} 
-                        onChange={(e) => updateFolder(project.id, { description: e.target.value })} 
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Folder Description</label>
+                      <FormattedTextarea
+                        value={project.description || ""}
+                        onChange={(v) => updateFolder(project.id, { description: v })}
                         className="w-full h-32 bg-slate-50 border border-slate-200 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800"
-                        placeholder="<p>Enter description with HTML tags</p>"
+                        placeholder="Select text, then use the buttons above to format it"
                       />
                     </div>
                     <div className="w-full sm:w-1/3">
@@ -860,6 +861,17 @@ if __name__ == "__main__":
                           <input type="file" accept="image/*" className="hidden" onChange={e => handleFolderIconUpload(project.id, e)} />
                         </label>
                       </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Bottom Text (shown centered at the bottom; subfolders inherit this if left blank)</label>
+                      <FormattedTextarea
+                        value={project.bottomText || ""}
+                        onChange={(v) => updateFolder(project.id, { bottomText: v })}
+                        className="w-full h-24 bg-slate-50 border border-slate-200 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800"
+                        placeholder="e.g. © 2026 Jacob Szczepaniak — shown at the very bottom of this folder and its subfolders"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1231,6 +1243,18 @@ if __name__ == "__main__":
                           className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
                           placeholder="https://example.com/boot.mp3"
                         />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Error Sound URL (MP3/WAV)</label>
+                        <input
+                          type="text"
+                          value={localAbout?.errorSoundUrl || ""}
+                          onChange={e => setLocalAbout({ ...localAbout, errorSoundUrl: e.target.value })}
+                          className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none font-mono text-sm"
+                          placeholder="https://example.com/error.wav"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">Plays when a visitor clicks an image before it has finished loading. Accepts .wav or .mp3.</p>
                       </div>
                     </div>
                   )}
