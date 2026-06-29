@@ -82,6 +82,46 @@ const safeSetItem = (key: string, value: string) => {
   try { localStorage.setItem(key, value); } catch (e) {}
 };
 
+interface MasonryGridProps {
+  columns: number;
+  images: GalleryImage[];
+  selectedProjectName: string;
+  imageAspectRatios: Record<string, number>;
+  textMutedStyle: string;
+  onImageClick: (index: number) => void;
+  className?: string;
+}
+
+const MasonryGrid = ({ columns, images, selectedProjectName, imageAspectRatios, textMutedStyle, onImageClick, className = "" }: MasonryGridProps) => (
+  <div className={`flex flex-row gap-[10px] items-start w-full ${className}`}>
+    {Array.from({length: columns}).map((_, colIndex) => (
+      <div key={colIndex} className="flex-1 flex flex-col gap-[10px] min-w-0">
+        {images.map((img, index) => {
+          if (index % columns !== colIndex) return null;
+          const baseName = selectedProjectName.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
+          let extension = index % 2 === 0 ? "png" : "jpg";
+          if (img.url.toLowerCase().endsWith(".gif")) extension = "gif";
+          else if (img.url.toLowerCase().endsWith(".png")) extension = "png";
+          else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
+          if (img.isVideo) extension = "mp4";
+          const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
+          return (
+            <div key={index} className="w-full">
+              <div onClick={() => onImageClick(index)} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
+                <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
+                  <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
+                  {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
+                </div>
+                <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${textMutedStyle} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    ))}
+  </div>
+);
+
 export default function Portfolio() {
   const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR, isDataLoaded } = useAppletData();
   
@@ -121,10 +161,11 @@ export default function Portfolio() {
       // Preload folder icon
       if (p.folderIconImage && !preloadedRef.current.has(p.folderIconImage)) {
         preloadedRef.current.add(p.folderIconImage);
+        const folderUrl = getImageUrl(p.folderIconImage);
         const folderImg = new Image();
-        folderImg.src = p.folderIconImage;
+        folderImg.src = folderUrl;
         folderImg.onload = () => {
-          loadedImagesCache.add(p.folderIconImage!);
+          loadedImagesCache.add(folderUrl);
         };
       }
       p.gallery.forEach(img => {
@@ -218,38 +259,37 @@ export default function Portfolio() {
     }
   };
 
-  const styles = useMemo(() => ({
-    // Containers
-    outerBg: `transition-colors duration-500 ${isDark ? "bg-[#1c1c1e] text-slate-200" : "bg-[#dedede] text-[#1f2937]"}`,
-    windowBg: `transition-colors duration-500 ${isDark ? "bg-[#2a2a2c] border border-white/10 shadow-[0_22px_55px_rgba(0,0,0,0.75)]" : "bg-[#fbfbfb] border border-black/15 shadow-[0_22px_55px_rgba(0,0,0,0.18)]"}`,
-    titleBarBg: `transition-colors duration-500 ${isDark ? "bg-[#3a3a3c] border-b border-black/35 text-slate-200" : "bg-[#ececed] border-b border-black/12 text-slate-700"}`,
-    titleText: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-slate-600"}`,
-    toolbarBg: `transition-colors duration-500 ${isDark ? "bg-[#323234] border-b border-black/45" : "bg-[#f5f5f7] border-b border-[#000000]/12"}`,
-    sidebarBg: `transition-colors duration-500 ${isDark ? "bg-[#18181a] border-r border-black/45 shadow-[4px_0_16px_rgba(0,0,0,0.3)] z-10 text-slate-300" : "bg-[#ececed] border-r border-black/15 shadow-[4px_0_16px_rgba(0,0,0,0.06)] z-10 text-slate-800"}`,
-    mainCanvasBg: `transition-colors duration-500 ${isDark ? "bg-[#2a2a2c] text-slate-100" : "bg-white text-slate-900"}`,
-    statusBarBg: `transition-colors duration-500 ${isDark ? "bg-[#2a2a2c] border-t border-black/35 text-slate-400" : "bg-[#f0f0f2] border-t border-black/10 text-slate-600"}`,
+  const styles = useMemo(() => {
+    const tx = (dark: string, light: string) => `transition-colors duration-500 ${isDark ? dark : light}`;
     
-    // Text elements
-    textPrimary: `transition-colors duration-500 ${isDark ? "text-slate-100" : "text-slate-950"}`,
-    textSecondary: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-slate-800"}`,
-    textMuted: `transition-colors duration-500 ${isDark ? "text-slate-400" : "text-slate-500"}`,
-    textMutedSubtle: `transition-colors duration-500 ${isDark ? "text-slate-500" : "text-slate-400"}`,
-    
-    // Buttons & Icons
-    sidebarSectionHeader: `transition-colors duration-500 ${isDark ? "text-slate-500 font-bold" : "text-slate-400 font-extrabold"}`,
-    sidebarButtonSelected: `transition-colors duration-500 ${isDark ? "bg-[#3063d4] text-white" : "bg-[#1062fe] text-white shadow-xs"}`,
-    sidebarButtonHover: `transition-colors duration-500 ${isDark ? "text-slate-300" : "text-slate-700"}`,
-    toolbarButton: `transition-colors duration-500 ${isDark ? "bg-[#323234] hover:bg-[#3d3d40] text-slate-300 border border-[#4a4a4d]" : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-3xs"}`,
-    toolbarToggleBg: `transition-colors duration-500 ${isDark ? "bg-[#232325] border border-[#434346]" : "bg-slate-200/60 border border-slate-300"}`,
-    toolbarToggleBtnSelected: `transition-colors duration-500 ${isDark ? "bg-[#3e3e41] text-sky-400" : "bg-white text-[#1062fe] shadow-3xs"}`,
-    toolbarToggleBtnHover: `transition-colors duration-500 ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-505 hover:text-slate-800"}`,
-    
-    // Card & badges inside main workspace
-    cardBg: `transition-colors duration-500 ${isDark ? "bg-black/15 border border-white/5" : "bg-[#f9f9fb] border border-black/8 shadow-2xs"}`,
-    badgeBg: `transition-colors duration-500 ${isDark ? "bg-sky-500/10 text-sky-400 border border-sky-400/20" : "bg-[#1062fe]/10 text-[#1062fe] border border-[#1062fe]/20"}`,
-    badgeGreenBg: `transition-colors duration-500 ${isDark ? "bg-emerald-500/10 text-emerald-400 border border-emerald-400/20" : "bg-emerald-600/10 text-emerald-600 border border-emerald-600/20"}`,
-    badgeOrangeBg: `transition-colors duration-500 ${isDark ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" : "bg-orange-600/10 text-orange-600 border border-orange-600/20"}`,
-  }), [isDark]);
+    return {
+      // Containers
+      outerBg: tx("bg-[#1c1c1e] text-slate-200", "bg-[#dedede] text-[#1f2937]"),
+      windowBg: tx("bg-[#2a2a2c] border border-white/10 shadow-[0_22px_55px_rgba(0,0,0,0.75)]", "bg-[#fbfbfb] border border-black/15 shadow-[0_22px_55px_rgba(0,0,0,0.18)]"),
+      titleBarBg: tx("bg-[#3a3a3c] border-b border-black/35 text-slate-200", "bg-[#ececed] border-b border-black/12 text-slate-700"),
+      titleText: tx("text-slate-300", "text-slate-600"),
+      sidebarBg: tx("bg-[#18181a] border-r border-black/45 shadow-[4px_0_16px_rgba(0,0,0,0.3)] z-10 text-slate-300", "bg-[#ececed] border-r border-black/15 shadow-[4px_0_16px_rgba(0,0,0,0.06)] z-10 text-slate-800"),
+      mainCanvasBg: tx("bg-[#2a2a2c] text-slate-100", "bg-white text-slate-900"),
+      statusBarBg: tx("bg-[#2a2a2c] border-t border-black/35 text-slate-400", "bg-[#f0f0f2] border-t border-black/10 text-slate-600"),
+      
+      // Text elements
+      textPrimary: tx("text-slate-100", "text-slate-950"),
+      textSecondary: tx("text-slate-300", "text-slate-800"),
+      textMuted: tx("text-slate-400", "text-slate-500"),
+      textMutedSubtle: tx("text-slate-500", "text-slate-400"),
+      
+      // Buttons & Icons
+      sidebarSectionHeader: tx("text-slate-500 font-bold", "text-slate-400 font-extrabold"),
+      sidebarButtonSelected: tx("bg-[#3063d4] text-white", "bg-[#1062fe] text-white shadow-xs"),
+      sidebarButtonHover: tx("text-slate-300", "text-slate-700"),
+      
+      // Card & badges inside main workspace
+      cardBg: tx("bg-black/15 border border-white/5", "bg-[#f9f9fb] border border-black/8 shadow-2xs"),
+      badgeBg: tx("bg-sky-500/10 text-sky-400 border border-sky-400/20", "bg-[#1062fe]/10 text-[#1062fe] border border-[#1062fe]/20"),
+      badgeGreenBg: tx("bg-emerald-500/10 text-emerald-400 border border-emerald-400/20", "bg-emerald-600/10 text-emerald-600 border border-emerald-600/20"),
+      badgeOrangeBg: tx("bg-orange-500/10 text-orange-400 border border-orange-500/20", "bg-orange-600/10 text-orange-600 border border-orange-600/20"),
+    };
+  }, [isDark]);
 
   // Modals controller states
   const [isAboutMeOpen, setIsAboutMeOpen] = useState<boolean>(false);
@@ -266,19 +306,20 @@ export default function Portfolio() {
   const [isLightboxIdle, setIsLightboxIdle] = useState(false);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const resetLightboxIdle = () => {
+  const resetLightboxIdle = React.useCallback(() => {
     setIsLightboxIdle(false);
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    idleTimerRef.current = setTimeout(() => setIsLightboxIdle(true), 1000);
-  };
+    idleTimerRef.current = setTimeout(() => setIsLightboxIdle(true), 1500);
+  }, []);
 
   useEffect(() => {
     if (lightboxIndex !== null) {
       resetLightboxIdle();
-    } else {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     }
-  }, [lightboxIndex]);
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [lightboxIndex, resetLightboxIdle]);
 
   // Reset zoom and panning when lightbox index changes
   useEffect(() => {
@@ -473,15 +514,20 @@ export default function Portfolio() {
       </AnimatePresence>
 
       {/* 7. macOS Preview Lightbox Overlay */}
-      {lightboxIndex !== null && selectedProject && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center animate-fade-in overflow-y-auto osx-scrollbar"
-          onClick={closeLightbox}
-          onMouseMove={resetLightboxIdle}
-          onKeyDown={resetLightboxIdle}
-        >
-          {/* Lightbox Toolbar Header - Fixed at top */}
-          <div className="w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 sticky top-0 z-50" onClick={e => e.stopPropagation()}>
+      <AnimatePresence>
+        {lightboxIndex !== null && selectedProject && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center overflow-y-auto osx-scrollbar"
+            onClick={closeLightbox}
+            onMouseMove={resetLightboxIdle}
+            onKeyDown={resetLightboxIdle}
+          >
+            {/* Lightbox Toolbar Header - Fixed at top */}
+            <div className={`w-full max-w-5xl flex items-center justify-between text-slate-300 py-2.5 px-4 shrink-0 sticky top-0 z-50 transition-opacity duration-300 ${isLightboxIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center space-x-3">
               <button 
                 onClick={closeLightbox}
@@ -516,7 +562,7 @@ export default function Portfolio() {
                   setLightboxZoom(1);
                   resetLightboxIdle();
                 }}
-                className="absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
+                className={`absolute left-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition-opacity duration-300 ${isLightboxIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
               >
                 <ChevronLeft className="w-6 h-6" />
               </button>
@@ -569,7 +615,7 @@ export default function Portfolio() {
                   setLightboxZoom(1);
                   resetLightboxIdle();
                 }}
-                className="absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition"
+                className={`absolute right-4 z-40 p-3.5 bg-black/45 text-white rounded-full cursor-pointer hover:bg-black/70 focus:outline-none transition-opacity duration-300 ${isLightboxIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
               >
                 <ChevronRight className="w-6 h-6" />
               </button>
@@ -604,8 +650,9 @@ export default function Portfolio() {
               />
             </div>
           )}
-        </div>
-      )}      {/* Main Finder Window container */}
+        </motion.div>
+      )}
+      </AnimatePresence>      {/* Main Finder Window container */}
       <motion.div 
         drag
         dragListener={false}
@@ -651,11 +698,6 @@ export default function Portfolio() {
             <div className="group w-3.5 h-3.5 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center">
               <span className="text-[7px] text-[#024B0E] font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">+</span>
             </div>
-            {activeSelection !== "overview" && (
-              <span className="md:hidden text-[11px] font-sans font-bold text-sky-500 animate-pulse pl-1 leading-none select-none">
-                Back
-              </span>
-            )}
           </div>
 
           {/* Centered Folder Location path banner */}
@@ -795,9 +837,17 @@ export default function Portfolio() {
           {/* B. Center workspace directory canvas */}
           <main className={`flex-1 overflow-y-auto p-2.5 relative min-w-0 flex flex-col justify-start ${styles.mainCanvasBg} select-none`}>
             
+            <AnimatePresence mode="wait">
             {activeSelection === "overview" ? (
               // ==================== STATE 1: TOP-LEVEL OVERVIEW VIEW ====================
-              <div className="h-full flex flex-col justify-start min-h-0">
+              <motion.div 
+                key="overview"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="h-full flex flex-col justify-start min-h-0"
+              >
                 
                 <div className="pt-2" />
 
@@ -972,11 +1022,18 @@ export default function Portfolio() {
 
                 </div>
 
-              </div>
+              </motion.div>
             ) : (
               // ==================== STATE 2: PROJECT CORRESPONDING GALLERY VIEW ====================
               selectedProject && (
-                <div key={selectedProject.id} className={`h-full flex flex-col justify-start min-h-0 ${styles.textSecondary}`}>
+                <motion.div 
+                  key={selectedProject.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className={`h-full flex flex-col justify-start min-h-0 ${styles.textSecondary}`}
+                >
                   
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
                   <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full p-2.5">
@@ -988,68 +1045,33 @@ export default function Portfolio() {
                     )}
                     <>
                       {/* Desktop Masonry (4 columns) */}
-                      <div className="hidden md:flex flex-row gap-[10px] items-start w-full">
-                        {Array.from({length: 4}).map((_, colIndex) => (
-                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px] min-w-0">
-                            {selectedProject.gallery.map((img, index) => {
-                              if (index % 4 !== colIndex) return null;
-                              const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
-                              let extension = index % 2 === 0 ? "png" : "jpg";
-                              if (img.url.toLowerCase().endsWith(".gif")) extension = "gif";
-                              else if (img.url.toLowerCase().endsWith(".png")) extension = "png";
-                              else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
-                              if (img.isVideo) extension = "mp4";
-                              const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
-                              return (
-                                <div key={index} className="w-full">
-                                  <div onClick={() => { const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url)); if (isLoaded) setLightboxIndex(index); else new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {}); }} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
-                                    <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
-                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
-                                      {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
-                                    </div>
-                                    <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
+                      <MasonryGrid 
+                        columns={4}
+                        images={selectedProject.gallery}
+                        selectedProjectName={selectedProject.name}
+                        imageAspectRatios={imageAspectRatios}
+                        textMutedStyle={styles.textMuted}
+                        onImageClick={setLightboxIndex}
+                        className="hidden md:flex"
+                      />
                       
                       {/* Mobile Masonry (2 columns) */}
-                      <div className="flex md:hidden flex-row gap-[10px] items-start w-full">
-                        {Array.from({length: 2}).map((_, colIndex) => (
-                          <div key={colIndex} className="flex-1 flex flex-col gap-[10px] min-w-0">
-                            {selectedProject.gallery.map((img, index) => {
-                              if (index % 2 !== colIndex) return null;
-                              const baseName = selectedProject.name.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
-                              let extension = index % 2 === 0 ? "png" : "jpg";
-                              if (img.url.toLowerCase().endsWith(".gif")) extension = "gif";
-                              else if (img.url.toLowerCase().endsWith(".png")) extension = "png";
-                              else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
-                              if (img.isVideo) extension = "mp4";
-                              const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
-                              return (
-                                <div key={index} className="w-full">
-                                  <div onClick={() => { const isLoaded = img.isVideo || loadedImagesCache.has(getImageUrl(img.url)); if (isLoaded) setLightboxIndex(index); else new Audio("https://alxwntr.com/downloads/Mac-OS-Sounds/Basso.wav").play().catch(() => {}); }} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
-                                    <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
-                                      <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
-                                      {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
-                                    </div>
-                                    <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${styles.textMuted} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
+                      <MasonryGrid 
+                        columns={2}
+                        images={selectedProject.gallery}
+                        selectedProjectName={selectedProject.name}
+                        imageAspectRatios={imageAspectRatios}
+                        textMutedStyle={styles.textMuted}
+                        onImageClick={setLightboxIndex}
+                        className="flex md:hidden"
+                      />
                     </>
                   </div>
 
-                </div>
+                </motion.div>
               )
             )}
+            </AnimatePresence>
 
           </main>
 
@@ -1064,6 +1086,12 @@ export default function Portfolio() {
                 ? "Volume: Jacob's Portfolio SSD" 
                 : `Volume: Jacob's Portfolio SSD ➔ ${getSectionTitle(activeSelection)}`}
             </span>
+            <span className="text-slate-500 px-2">|</span>
+            <span className="font-medium tracking-wide whitespace-nowrap text-slate-500">
+              {activeSelection === "overview" 
+                ? `${filteredOverviewFolders.length + filteredOverviewLinks.length + 4} items`
+                : `${selectedProject?.gallery.length || 0} items`}
+            </span>
           </div>
 
           <div className="flex items-center justify-between w-full sm:w-auto gap-4 sm:gap-6 text-right shrink-0">
@@ -1075,7 +1103,7 @@ export default function Portfolio() {
             <div className={`transition-colors duration-500 flex items-center border-l pl-4 shrink-0 ${isDark ? "border-white/10" : "border-black/10"}`}>
               <button 
                 onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
-                className={`transition-colors duration-500 flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full font-semibold cursor-pointer active:scale-95 ${
+                className={`transition-all duration-150 flex items-center justify-center w-[124px] space-x-1.5 px-3 py-1.5 rounded-full font-semibold cursor-pointer active:scale-95 ${
                   isDark 
                     ? "bg-white/5 text-slate-300 border border-white/5" 
                     : "bg-black/5 text-slate-700 border border-black/10 shadow-3xs"
@@ -1102,12 +1130,26 @@ export default function Portfolio() {
 
     </div>
     
-    {about?.bootConfig?.enabled && !bootCompleted && (
-      <BootAnimation 
-        config={about.bootConfig} 
-        onComplete={() => setBootCompleted(true)} 
-      />
-    )}
+    <AnimatePresence>
+      {(!isDataLoaded || (about?.bootConfig?.enabled && !bootCompleted)) && (
+        <motion.div
+          key="boot-screen"
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8, ease: "easeInOut" }}
+          className="fixed inset-0 z-[9999]"
+        >
+          {isDataLoaded ? (
+            <BootAnimation 
+              config={about.bootConfig!} 
+              onComplete={() => setBootCompleted(true)} 
+            />
+          ) : (
+            <div className="fixed inset-0 bg-black" />
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
     </>
   );
 }

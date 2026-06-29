@@ -2,12 +2,13 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { Project, ExternalLink, AboutInfo, SidebarItem } from "./types";
 import { getApiUrl } from "./api";
 
-interface DataContextType {
+export interface DataContextType {
   projects: Project[];
   links: ExternalLink[];
   about: AboutInfo;
   sidebar: SidebarItem[];
   isDataLoaded: boolean;
+  hasError: boolean;
   refreshData: () => Promise<void>;
 }
 
@@ -60,6 +61,7 @@ export const DataContext = createContext<DataContextType>({
   about: fallbackAbout,
   sidebar: [],
   isDataLoaded: false,
+  hasError: false,
   refreshData: async () => {}
 });
 
@@ -86,6 +88,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return cached ? JSON.parse(cached) : [];
   });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const refreshData = async () => {
     try {
@@ -115,9 +118,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         
         setSidebar(d.SIDEBAR || []);
         safeSetItem('cached_sidebar', JSON.stringify(d.SIDEBAR || []));
+      } else {
+        setHasError(true);
       }
     } catch (e) {
       console.error(e);
+      setHasError(true);
     } finally {
       setIsDataLoaded(true);
     }
@@ -128,7 +134,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <DataContext.Provider value={{ projects, links, about, sidebar, isDataLoaded, refreshData }}>
+    <DataContext.Provider value={{ projects, links, about, sidebar, isDataLoaded, hasError, refreshData }}>
       {children}
     </DataContext.Provider>
   );

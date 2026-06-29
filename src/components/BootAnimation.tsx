@@ -8,10 +8,11 @@ interface BootAnimationProps {
 }
 
 export default function BootAnimation({ config, onComplete }: BootAnimationProps) {
-  const [lines, setLines] = useState<string[]>([]);
+  const [progress, setProgress] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [progress, setProgress] = useState(0);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioPlayedRef = useRef(false);
 
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
@@ -26,12 +27,8 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     }
 
     let isRunning = true;
-    let timeoutId: ReturnType<typeof setTimeout>;
-
     const totalDuration = Math.max(100, config.durationMs || 5000);
     const startTime = Date.now();
-
-    // Apple style boot logic
     let currentProgress = 0;
     
     const updateProgress = () => {
@@ -40,30 +37,47 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
       const elapsed = Date.now() - startTime;
       currentProgress = Math.min(100, (elapsed / totalDuration) * 100);
       setProgress(currentProgress);
+
+      // Play audio slightly before finish (e.g., at 95% or a few ms before end)
+      if (currentProgress > 95 && !audioPlayedRef.current) {
+        audioPlayedRef.current = true;
+        if (audioRef.current) {
+          audioRef.current.volume = 0;
+          audioRef.current.play().catch(e => console.warn("Audio autoplay blocked", e));
+          
+          let vol = 0;
+          const fadeTimer = setInterval(() => {
+            if (vol >= 0.5) {
+              clearInterval(fadeTimer);
+              if (audioRef.current) audioRef.current.volume = 0.5;
+            } else {
+              vol += 0.05;
+              if (audioRef.current) audioRef.current.volume = vol;
+            }
+          }, 20);
+        }
+      }
       
       if (currentProgress < 100) {
         // Random delay scaled by total duration to keep the stopping/starting effect
         const maxDelay = totalDuration / 10;
         const delay = Math.random() < 0.3 ? maxDelay : maxDelay / 4;
-        timeoutId = setTimeout(updateProgress, delay);
+        timeoutIdRef.current = setTimeout(updateProgress, delay);
       } else {
-        timeoutId = setTimeout(() => {
+        timeoutIdRef.current = setTimeout(() => {
           if (!isRunning) return;
-          if (audioRef.current) {
-            audioRef.current.play().catch(e => console.warn("Audio autoplay blocked", e));
-          }
           onCompleteRef.current();
         }, 100);
       }
     };
     
-    timeoutId = setTimeout(updateProgress, Math.min(300, totalDuration / 10));
+    timeoutIdRef.current = setTimeout(updateProgress, Math.min(300, totalDuration / 10));
 
     return () => {
       isRunning = false;
-      clearTimeout(timeoutId);
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
     };
-  }, [config.audioUrl]);
+  }, [config.audioUrl, config.durationMs]);
 
   const [hasInteracted, setHasInteracted] = useState(false);
 
@@ -71,10 +85,12 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     if (!hasInteracted) {
       setHasInteracted(true);
       // Unlock audio for mobile browsers by playing and pausing immediately
-      if (audioRef.current) {
+      if (audioRef.current && !audioPlayedRef.current) {
         audioRef.current.play().then(() => {
-          audioRef.current?.pause();
-          if (audioRef.current) audioRef.current.currentTime = 0;
+          if (!audioPlayedRef.current) {
+            audioRef.current?.pause();
+            if (audioRef.current) audioRef.current.currentTime = 0;
+          }
         }).catch(() => {});
       }
     }
