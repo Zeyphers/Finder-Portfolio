@@ -54,29 +54,45 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
   objectFit = "cover",
   ...props
 }) => {
-  const [loaded, setLoaded] = useState(() => !!src && loadedImagesCache.has(src));
+  const [loaded, setLoaded] = useState(false);
   const [avg, setAvg] = useState<string | undefined>(() => (src ? imageAvgColors[src] : undefined));
 
-  // Load the image OFF-SCREEN and only mount the visible <img> once it's fully decoded.
-  // This avoids the browser's partial top-to-bottom paint — the image appears in one frame.
+  // Load the image OFF-SCREEN and only reveal the visible <img> once it is fully
+  // downloaded AND decoded (via img.decode()). This guarantees the browser never shows
+  // a partial top-to-bottom paint — the placeholder holds until the image is ready,
+  // then it appears in one frame. (We don't trust a "seen this session" flag because the
+  // browser can evict large images, which would re-download and paint progressively.)
   useEffect(() => {
     if (!src) { setLoaded(false); return; }
+    setLoaded(false);
     if (imageAvgColors[src]) setAvg(imageAvgColors[src]);
 
-    if (loadedImagesCache.has(src)) { setLoaded(true); return; }
-
-    setLoaded(false);
     let cancelled = false;
-    const loader = new Image();
-    loader.onload = () => {
+    const finish = (el: HTMLImageElement) => {
       if (cancelled) return;
       loadedImagesCache.add(src);
-      const c = computeAvgColor(loader, src);
+      const c = computeAvgColor(el, src);
       if (c) setAvg(c);
       setLoaded(true);
     };
-    loader.onerror = () => { if (!cancelled) setLoaded(true); };
+
+    const loader = new Image();
     loader.src = src;
+    if (typeof loader.decode === "function") {
+      loader.decode()
+        .then(() => finish(loader))
+        .catch(() => {
+          // decode() can reject on some sources; fall back to load events
+          if (loader.complete && loader.naturalWidth) finish(loader);
+          else {
+            loader.onload = () => finish(loader);
+            loader.onerror = () => { if (!cancelled) setLoaded(true); };
+          }
+        });
+    } else {
+      loader.onload = () => finish(loader);
+      loader.onerror = () => { if (!cancelled) setLoaded(true); };
+    }
     return () => { cancelled = true; };
   }, [src]);
 
