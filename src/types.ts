@@ -28,6 +28,7 @@ export interface Project {
   tags: string[];
   imageUrl: string;
   folderIconImage?: string;
+  parentId?: string; // id of the containing folder; empty/undefined = top-level
   features: string[];
   gallery: GalleryImage[];
   wordpressCode: {

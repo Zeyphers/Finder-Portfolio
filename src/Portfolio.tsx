@@ -87,6 +87,8 @@ const safeSetItem = (key: string, value: string) => {
 interface MasonryGridProps {
   columns: number;
   images: GalleryImage[];
+  folders?: Project[];
+  onFolderClick?: (id: string) => void;
   selectedProjectName: string;
   imageAspectRatios: Record<string, number>;
   textMutedStyle: string;
@@ -94,35 +96,73 @@ interface MasonryGridProps {
   className?: string;
 }
 
-const MasonryGrid = ({ columns, images, selectedProjectName, imageAspectRatios, textMutedStyle, onImageClick, className = "" }: MasonryGridProps) => (
-  <div className={`flex flex-row gap-[10px] items-start w-full ${className}`}>
-    {Array.from({length: columns}).map((_, colIndex) => (
-      <div key={colIndex} className="flex-1 flex flex-col gap-[10px] min-w-0">
-        {images.map((img, index) => {
-          if (index % columns !== colIndex) return null;
-          const baseName = selectedProjectName.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
-          let extension = index % 2 === 0 ? "png" : "jpg";
-          if (img.url.toLowerCase().endsWith(".gif")) extension = "gif";
-          else if (img.url.toLowerCase().endsWith(".png")) extension = "png";
-          else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
-          if (img.isVideo) extension = "mp4";
-          const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
-          return (
-            <div key={index} className="w-full">
-              <div onClick={() => onImageClick(index)} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
-                <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
-                  <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
-                  {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
+// Like Finder: subfolders are mixed into the same grid as the image files, but listed
+// first so they sit at the top, then the files flow below in the masonry columns.
+type MasonryCell =
+  | { kind: "folder"; project: Project }
+  | { kind: "image"; img: GalleryImage; imageIndex: number };
+
+const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedProjectName, imageAspectRatios, textMutedStyle, onImageClick, className = "" }: MasonryGridProps) => {
+  const cells: MasonryCell[] = [
+    ...folders.map((project) => ({ kind: "folder", project } as MasonryCell)),
+    ...images.map((img, imageIndex) => ({ kind: "image", img, imageIndex } as MasonryCell)),
+  ];
+  return (
+    <div className={`flex flex-row gap-[10px] items-start w-full ${className}`}>
+      {Array.from({length: columns}).map((_, colIndex) => (
+        <div key={colIndex} className="flex-1 flex flex-col gap-[10px] min-w-0">
+          {cells.map((cell, cellIndex) => {
+            if (cellIndex % columns !== colIndex) return null;
+
+            if (cell.kind === "folder") {
+              const project = cell.project;
+              return (
+                <div key={`folder-${project.id}`} className="w-full">
+                  <motion.div
+                    onClick={() => onFolderClick?.(project.id)}
+                    whileTap={{ scale: 0.94 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                    className="group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full"
+                  >
+                    <div className="w-3/5 aspect-square flex items-center justify-center">
+                      {project.folderIconImage ? (
+                        <ProgressiveImage src={project.folderIconImage} alt={project.name} objectFit="contain" className="max-w-full max-h-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.15)]" containerClassName="w-full h-full flex items-center justify-center" />
+                      ) : (
+                        <FolderIcon className="w-full h-full" />
+                      )}
+                    </div>
+                    <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${textMutedStyle} -mt-1 break-words leading-tight w-full px-1`}>{project.name.split(" — ")[0]}</div>
+                  </motion.div>
                 </div>
-                <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${textMutedStyle} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
+              );
+            }
+
+            const img = cell.img;
+            const index = cell.imageIndex;
+            const baseName = selectedProjectName.split(" — ")[0].replace(/\s+/g, '_').toLowerCase();
+            let extension = index % 2 === 0 ? "png" : "jpg";
+            if (img.url.toLowerCase().endsWith(".gif")) extension = "gif";
+            else if (img.url.toLowerCase().endsWith(".png")) extension = "png";
+            else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
+            if (img.isVideo) extension = "mp4";
+            const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
+            return (
+              <div key={`img-${index}`} className="w-full">
+                <div onClick={() => onImageClick(index)} className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}>
+                  <div className="w-full relative p-1" style={(img.isVideo || imageAspectRatios[img.url]) ? { aspectRatio: img.isVideo ? "16/9" : `${imageAspectRatios[img.url]}` } : undefined}>
+                    <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
+                    {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
+                  </div>
+                  <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${textMutedStyle} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    ))}
-  </div>
-);
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export default function Portfolio() {
   const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR, isDataLoaded } = useAppletData();
@@ -459,17 +499,66 @@ export default function Portfolio() {
     return PROJECTS.find(p => p.id === activeSelection) || null;
   }, [activeSelection, PROJECTS]);
 
-  // Folder level items rendering filtering
+  // Folder level items rendering filtering.
+  // With no search: show only top-level folders (subfolders live inside their parent).
+  // With a search query: match across ALL folders (flattened) so nested ones stay findable.
   const filteredOverviewFolders = useMemo(() => {
-    if (searchQuery.trim() === "") return PROJECTS;
+    if (searchQuery.trim() === "") return PROJECTS.filter(p => !p.parentId);
     const q = searchQuery.toLowerCase();
-    return PROJECTS.filter(p => 
-      (p.name || "").toLowerCase().includes(q) || 
-      (p.client || "").toLowerCase().includes(q) || 
-      (p.category || "").toLowerCase().includes(q) || 
+    return PROJECTS.filter(p =>
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.client || "").toLowerCase().includes(q) ||
+      (p.category || "").toLowerCase().includes(q) ||
       (p.tags || []).some(t => (t || "").toLowerCase().includes(q))
     );
   }, [searchQuery, PROJECTS]);
+
+  // Direct subfolders of the currently open folder.
+  const childFolders = useMemo(
+    () => (selectedProject ? PROJECTS.filter(p => p.parentId === selectedProject.id) : []),
+    [selectedProject, PROJECTS]
+  );
+
+  // Walk the parentId chain to build a breadcrumb trail [root … current].
+  const getAncestry = (id: string): Project[] => {
+    const chain: Project[] = [];
+    const seen = new Set<string>();
+    let cur = PROJECTS.find(p => p.id === id);
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      chain.unshift(cur);
+      cur = cur.parentId ? PROJECTS.find(p => p.id === cur!.parentId) : undefined;
+    }
+    return chain;
+  };
+
+  // Reusable Finder-style folder card (used by the overview grid and subfolder grids).
+  const renderFolderCard = (project: Project) => (
+    <motion.div
+      key={project.id}
+      onClick={() => navigateTo(project.id)}
+      whileTap={{ scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 500, damping: 20 }}
+      className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+    >
+      {project.folderIconImage ? (
+        <div className="w-[140px] h-[140px] mb-1 flex items-center justify-center p-1">
+          <ProgressiveImage
+            src={project.folderIconImage}
+            alt={project.name}
+            objectFit="contain"
+            className="max-w-full max-h-full drop-shadow-[0_4px_8px_rgba(0,0,0,0.15)] object-contain"
+            containerClassName="w-full h-full flex items-center justify-center"
+          />
+        </div>
+      ) : (
+        <FolderIcon className="w-[140px] h-[140px] mb-1" />
+      )}
+      <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} leading-tight w-full break-words mt-2 px-1`}>
+        {project.name.split(" — ")[0]}
+      </span>
+    </motion.div>
+  );
 
   const filteredOverviewLinks = useMemo(() => {
     if (searchQuery.trim() === "") return EXTERNAL_LINKS;
@@ -756,15 +845,15 @@ export default function Portfolio() {
                   <div className="space-y-1.5 mt-2">
                     <h4 className={`text-[12px] uppercase pl-2 tracking-wider ${styles.sidebarSectionHeader}`}>Projects</h4>
                     <ul className="space-y-1 text-[15.5px]">
-                      {PROJECTS.map((project) => {
+                      {PROJECTS.filter(p => !p.parentId).map((project) => {
                         const isCurSelected = activeSelection === project.id;
                         return (
                           <li key={project.id}>
                             <button
                               onClick={() => navigateTo(project.id)}
                               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left font-medium cursor-pointer truncate ${
-                                isCurSelected 
-                                  ? styles.sidebarButtonSelected 
+                                isCurSelected
+                                  ? styles.sidebarButtonSelected
                                   : styles.sidebarButtonHover
                               }`}
                             >
@@ -870,32 +959,7 @@ export default function Portfolio() {
                         Project Folders
                       </div>
                       <div className="flex flex-wrap gap-[10px] justify-start items-start">
-                        {filteredOverviewFolders.map((project) => (
-                          <div 
-                            key={project.id}
-                            onClick={() => navigateTo(project.id)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
-                          >
-                            {project.folderIconImage ? (
-                              <div className="w-[140px] h-[140px] mb-1 flex items-center justify-center p-1">
-                                <ProgressiveImage
-                                  src={project.folderIconImage} 
-                                  alt={project.name} 
-                                  objectFit="contain"
-                                  className="max-w-full max-h-full drop-shadow-[0_4px_8px_rgba(0,0,0,0.15)] object-contain" 
-                                  containerClassName="w-full h-full flex items-center justify-center"
-                                />
-                              </div>
-                            ) : (
-                              <FolderIcon 
-                                className="w-[140px] h-[140px] mb-1"
-                              />
-                            )}
-                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} leading-tight w-full break-words mt-2 px-1`}>
-                              {project.name.split(" — ")[0]}
-                            </span>
-                          </div>
-                        ))}
+                        {filteredOverviewFolders.map(renderFolderCard)}
                       </div>
                     </div>
                   )}
@@ -1044,38 +1108,71 @@ export default function Portfolio() {
                   transition={{ duration: 0.2 }}
                   className={`h-full flex flex-col justify-start min-h-0 ${styles.textSecondary}`}
                 >
-                  
+
+                  {/* Breadcrumb trail for nested-folder navigation */}
+                  <div className="shrink-0 px-3 pt-2 pb-1 flex items-center gap-1 flex-wrap text-[13px]">
+                    <button
+                      onClick={() => navigateTo("overview")}
+                      className={`hover:underline ${styles.textMuted} cursor-pointer`}
+                    >
+                      Overview
+                    </button>
+                    {getAncestry(selectedProject.id).map((f, i, arr) => (
+                      <React.Fragment key={f.id}>
+                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${styles.textMutedSubtle}`} />
+                        {i === arr.length - 1 ? (
+                          <span className={`font-semibold ${styles.textSecondary}`}>{f.name.split(" — ")[0]}</span>
+                        ) : (
+                          <button
+                            onClick={() => navigateTo(f.id)}
+                            className={`hover:underline ${styles.textMuted} cursor-pointer`}
+                          >
+                            {f.name.split(" — ")[0]}
+                          </button>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+
                   {/* Gallery Grid containing the images shown in 4 columns desktop / 2 columns mobile */}
                   <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full p-2.5">
                     {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && selectedProject.description.trim() !== "<p><br></p>" && (
-                      <div 
+                      <div
                         className={`mb-6 mt-2 px-2 w-full text-sm sm:text-[15px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
                         dangerouslySetInnerHTML={{ __html: selectedProject.description }}
                       />
                     )}
-                    <>
-                      {/* Desktop Masonry (4 columns) */}
-                      <MasonryGrid 
-                        columns={4}
-                        images={selectedProject.gallery}
-                        selectedProjectName={selectedProject.name}
-                        imageAspectRatios={imageAspectRatios}
-                        textMutedStyle={styles.textMuted}
-                        onImageClick={setLightboxIndex}
-                        className="hidden md:flex"
-                      />
-                      
-                      {/* Mobile Masonry (2 columns) */}
-                      <MasonryGrid 
-                        columns={2}
-                        images={selectedProject.gallery}
-                        selectedProjectName={selectedProject.name}
-                        imageAspectRatios={imageAspectRatios}
-                        textMutedStyle={styles.textMuted}
-                        onImageClick={setLightboxIndex}
-                        className="flex md:hidden"
-                      />
-                    </>
+
+                    {/* Subfolders are mixed into the gallery (folders first, then files) — Finder-style */}
+                    {(childFolders.length > 0 || selectedProject.gallery.length > 0) && (
+                      <>
+                        {/* Desktop Masonry (4 columns) */}
+                        <MasonryGrid
+                          columns={4}
+                          images={selectedProject.gallery}
+                          folders={childFolders}
+                          onFolderClick={navigateTo}
+                          selectedProjectName={selectedProject.name}
+                          imageAspectRatios={imageAspectRatios}
+                          textMutedStyle={styles.textMuted}
+                          onImageClick={setLightboxIndex}
+                          className="hidden md:flex"
+                        />
+
+                        {/* Mobile Masonry (2 columns) */}
+                        <MasonryGrid
+                          columns={2}
+                          images={selectedProject.gallery}
+                          folders={childFolders}
+                          onFolderClick={navigateTo}
+                          selectedProjectName={selectedProject.name}
+                          imageAspectRatios={imageAspectRatios}
+                          textMutedStyle={styles.textMuted}
+                          onImageClick={setLightboxIndex}
+                          className="flex md:hidden"
+                        />
+                      </>
+                    )}
                   </div>
 
                 </motion.div>
@@ -1092,15 +1189,13 @@ export default function Portfolio() {
           <div className="hidden sm:flex items-center space-x-2 min-w-0 max-w-full">
             <HardDrive className={`transition-colors duration-500 w-4 h-4 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
             <span className="font-medium tracking-wide truncate whitespace-nowrap">
-              {activeSelection === "overview" 
-                ? "Volume: Jacob's Portfolio SSD" 
-                : `Volume: Jacob's Portfolio SSD ➔ ${getSectionTitle(activeSelection)}`}
+              Volume: Jacob's Portfolio SSD
             </span>
             <span className="text-slate-500 px-2">|</span>
             <span className="font-medium tracking-wide whitespace-nowrap text-slate-500">
               {activeSelection === "overview" 
                 ? `${filteredOverviewFolders.length + filteredOverviewLinks.length + 4} items`
-                : `${selectedProject?.gallery.length || 0} items`}
+                : `${(selectedProject?.gallery.length || 0) + childFolders.length} items`}
             </span>
           </div>
 

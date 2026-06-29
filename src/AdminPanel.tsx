@@ -222,11 +222,48 @@ export function AdminPanel() {
   };
 
   const deleteFolder = (id: string) => {
-    setLocalProjects(localProjects.filter(p => p.id !== id));
+    const removed = localProjects.find(p => p.id === id);
+    const newParent = removed?.parentId; // promote children up one level (no orphans)
+    setLocalProjects(
+      localProjects
+        .filter(p => p.id !== id)
+        .map(p => (p.parentId === id ? { ...p, parentId: newParent } : p))
+    );
   };
 
   const updateFolder = (id: string, updates: Partial<Project>) => {
     setLocalProjects(localProjects.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
+  // All descendant ids of a folder — excluded from its own parent options to prevent cycles.
+  const getDescendantIds = (id: string): Set<string> => {
+    const result = new Set<string>();
+    const visit = (pid: string) => {
+      localProjects.forEach(p => {
+        if (p.parentId === pid && !result.has(p.id)) {
+          result.add(p.id);
+          visit(p.id);
+        }
+      });
+    };
+    visit(id);
+    return result;
+  };
+
+  // Depth-first ordering so each subfolder is listed right under its parent, with a depth
+  // used to indent + tint the card so the hierarchy is visible while editing.
+  const getOrderedProjects = (): { project: Project; depth: number }[] => {
+    const out: { project: Project; depth: number }[] = [];
+    const visit = (parentId: string | undefined, depth: number) => {
+      localProjects
+        .filter(p => (p.parentId || "") === (parentId || ""))
+        .forEach(p => { out.push({ project: p, depth }); visit(p.id, depth + 1); });
+    };
+    visit(undefined, 0);
+    // Safety net: surface any orphan (parent missing) at top level so nothing vanishes.
+    const seen = new Set(out.map(o => o.project.id));
+    localProjects.forEach(p => { if (!seen.has(p.id)) out.push({ project: p, depth: 0 }); });
+    return out;
   };
 
   const addYouTubeLink = (projectId: string) => {
@@ -728,15 +765,21 @@ if __name__ == "__main__":
             </div>
 
             <div className="space-y-8 pb-20">
-              {localProjects.map((project, folderIndex) => (
-            <div key={project.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div 
-                className="bg-slate-100 border-b border-slate-200 p-3 sm:px-6 flex justify-between items-center cursor-pointer hover:bg-slate-200 transition"
+              {getOrderedProjects().map(({ project, depth }) => (
+            <div
+              key={project.id}
+              style={{ marginLeft: depth * 28 }}
+              className={`rounded-xl shadow-sm overflow-hidden border ${depth === 0 ? "bg-white border-slate-200" : "bg-sky-50/70 border-slate-200 border-l-4 border-l-sky-400"}`}
+            >
+              <div
+                className={`border-b border-slate-200 p-3 sm:px-6 flex justify-between items-center cursor-pointer transition ${depth === 0 ? "bg-slate-100 hover:bg-slate-200" : "bg-sky-100/70 hover:bg-sky-100"}`}
                 onClick={() => toggleFolder(project.id)}
               >
                 <div className="flex items-center space-x-3">
-                  <Folder className="w-5 h-5 text-slate-500" />
-                  <span className="font-semibold text-slate-700">{project.name || "Unnamed Folder"}</span>
+                  {depth > 0 && <span className="text-sky-400 font-mono text-base leading-none select-none">└</span>}
+                  <Folder className={`w-5 h-5 ${depth === 0 ? "text-slate-500" : "text-sky-500"}`} />
+                  <span className={`font-semibold ${depth === 0 ? "text-slate-700" : "text-sky-900"}`}>{project.name || "Unnamed Folder"}</span>
+                  {depth > 0 && <span className="text-[11px] uppercase tracking-wide text-sky-500 font-semibold">subfolder</span>}
                 </div>
                 <div className="flex items-center space-x-4">
                   <span className="text-slate-400 text-xs font-medium">{project.gallery?.length || 0} items</span>
@@ -764,12 +807,32 @@ if __name__ == "__main__":
                     </div>
                     <div className="w-full sm:w-1/3">
                       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Category</label>
-                      <input 
-                        type="text" 
-                        value={project.category} 
-                        onChange={e => updateFolder(project.id, { category: e.target.value })} 
+                      <input
+                        type="text"
+                        value={project.category}
+                        onChange={e => updateFolder(project.id, { category: e.target.value })}
                         className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
                       />
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="w-full sm:w-1/2">
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Parent Folder</label>
+                      <select
+                        value={project.parentId || ""}
+                        onChange={e => updateFolder(project.id, { parentId: e.target.value || undefined })}
+                        className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
+                      >
+                        <option value="">None (top level)</option>
+                        {(() => {
+                          const blocked = getDescendantIds(project.id);
+                          return localProjects
+                            .filter(p => p.id !== project.id && !blocked.has(p.id))
+                            .map(p => (
+                              <option key={p.id} value={p.id}>{p.name.split(" — ")[0]}</option>
+                            ));
+                        })()}
+                      </select>
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
