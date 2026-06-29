@@ -344,6 +344,9 @@ router.get("/image-proxy", async (req, res) => {
     }
     const contentType = upstreamRes.headers.get("content-type");
     if (contentType) res.setHeader("Content-Type", contentType);
+    // Let the browser and Netlify's CDN cache proxied images so they aren't
+    // re-fetched (and the function isn't cold-started) on every visit.
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     const buffer = await upstreamRes.arrayBuffer();
     res.send(Buffer.from(buffer));
   } catch (e: any) {

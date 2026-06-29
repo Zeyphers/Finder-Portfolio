@@ -53,6 +53,8 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
       <img
          src={src}
          alt={alt}
+         loading="lazy"
+         decoding="async"
          className={`${className || ""} relative z-10 transition-opacity duration-300 ${fitClass} ${loaded ? "opacity-100" : "opacity-0"}`}
          onLoad={handleLoad}
          {...props}

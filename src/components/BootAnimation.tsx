@@ -9,6 +9,10 @@ interface BootAnimationProps {
 
 export default function BootAnimation({ config, onComplete }: BootAnimationProps) {
   const [progress, setProgress] = useState(0);
+  // When a custom logo URL is set we wait for it to load before revealing the
+  // progress bar, so the logo never pops in *after* the bar. The built-in SVG
+  // renders instantly, so it's ready from the start.
+  const [logoReady, setLogoReady] = useState(!config.appleLogoUrl);
   const containerRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -18,6 +22,22 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
+
+  // Preload the custom logo and reveal the bar once it's ready. A safety timeout
+  // ensures a slow or broken logo URL never blocks the boot sequence.
+  useEffect(() => {
+    if (!config.appleLogoUrl) {
+      setLogoReady(true);
+      return;
+    }
+    setLogoReady(false);
+    const img = new Image();
+    img.onload = () => setLogoReady(true);
+    img.onerror = () => setLogoReady(true);
+    img.src = config.appleLogoUrl;
+    const safety = setTimeout(() => setLogoReady(true), 1500);
+    return () => clearTimeout(safety);
+  }, [config.appleLogoUrl]);
 
   useEffect(() => {
     // Prepare audio
@@ -109,19 +129,25 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
         </div>
       )}
       <div className="flex flex-col items-center justify-center w-full max-w-sm mt-[-10vh]">
-        {/* Apple Logo SVG or Custom Logo */}
+        {/* Apple Logo SVG or Custom Logo (fixed-size box so there's no layout shift) */}
         {config.appleLogoUrl ? (
-          <img src={config.appleLogoUrl} alt="Boot Logo" className={`w-24 h-24 sm:w-32 sm:h-32 mb-16 object-contain ${config.invertAppleLogo ? 'invert' : ''}`} />
+          <img
+            src={config.appleLogoUrl}
+            alt="Boot Logo"
+            onLoad={() => setLogoReady(true)}
+            onError={() => setLogoReady(true)}
+            className={`w-24 h-24 sm:w-32 sm:h-32 mb-16 object-contain transition-opacity duration-300 ${logoReady ? 'opacity-100' : 'opacity-0'} ${config.invertAppleLogo ? 'invert' : ''}`}
+          />
         ) : (
           <svg className="w-24 h-24 sm:w-32 sm:h-32 text-white mb-16" viewBox="0 0 384 512" fill="currentColor">
             <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 24 184.8 8 273.7 0 318.5 13.3 408 55.4 466.8 75.4 494.7 99.3 512 127 512c26.5 0 38.6-16.7 70.8-16.7 32 0 42.9 16.7 71 16.7 27.6 0 50.8-16.8 70.2-44.6 23.3-33 34-66.2 34.6-67.6-1.5-.7-54.6-20.9-54.9-130.5M211.3 103.5c19.3-23.7 31.9-55.8 28.5-88-26.3 1-59 16.6-79.3 40.8-17.8 21.2-32 54.7-27.8 86.4 29.5 2.2 61-14.8 78.6-39.2z"/>
           </svg>
         )}
-        
-        {/* Progress Bar */}
-        <div className="w-56 h-[5px] bg-[#333333] rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-white rounded-full transition-all duration-300 ease-out" 
+
+        {/* Progress Bar — held hidden until the logo is ready so it never appears first */}
+        <div className={`w-56 h-[5px] bg-[#333333] rounded-full overflow-hidden transition-opacity duration-300 ${logoReady ? 'opacity-100' : 'opacity-0'}`}>
+          <div
+            className="h-full bg-white rounded-full transition-all duration-300 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
