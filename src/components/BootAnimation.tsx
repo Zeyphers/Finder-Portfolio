@@ -71,10 +71,10 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
               clearInterval(fadeTimer);
               if (audioRef.current) audioRef.current.volume = 0.5;
             } else {
-              vol += 0.05;
+              vol += 0.1;
               if (audioRef.current) audioRef.current.volume = vol;
             }
-          }, 20);
+          }, 10);
         }
       }
       
