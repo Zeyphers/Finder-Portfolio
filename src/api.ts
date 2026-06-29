@@ -22,6 +22,17 @@ export const getApiUrl = (path: string): string => {
   return cleanPath;
 };
 
+// Reading the data set can exceed the 6 MB buffered-response limit on Netlify, so on
+// Netlify we read it from the dedicated streaming function (netlify/functions/data.ts).
+// Locally (Express dev server / Cloud Run) the normal /api/data route handles it.
+export const getDataUrl = (): string => {
+  const hostname = window.location.hostname;
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".run.app")) {
+    return "/api/data";
+  }
+  return "/.netlify/functions/data";
+};
+
 export const getImageUrl = (url: string): string => {
   if (!url) return "";
   if (url.startsWith("http")) {

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Project, ExternalLink, AboutInfo, SidebarItem } from "./types";
-import { getApiUrl } from "./api";
+import { getApiUrl, getDataUrl } from "./api";
 
 export interface DataContextType {
   projects: Project[];
@@ -92,7 +92,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const refreshData = async () => {
     try {
-      const res = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
+      const res = await fetch(getDataUrl(), { cache: "no-store" });
       if (res.ok) {
         const d = await res.json();
         
