@@ -13,6 +13,8 @@ const ContactApp = lazy(() => import("./components/ContactApp").then(m => ({ def
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
+import { useParams, useNavigate } from "react-router-dom";
+import { buildPath, resolveFolder, resolveImageIndex } from "./urlSlug";
 import { motion, useDragControls, AnimatePresence } from "motion/react";
 import { 
   Folder, 
@@ -174,7 +176,12 @@ const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedPro
 
 export default function Portfolio() {
   const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR, isDataLoaded } = useAppletData();
-  
+
+  // Deep-link routing: the current folder/image are reflected in the URL so a
+  // specific folder or image can be linked and shared (see ./urlSlug).
+  const { folderSlug, imageSeg } = useParams();
+  const navigate = useNavigate();
+
   const isProd = window.location.hostname.includes('netlify.app') || window.location.hostname === 'jake-pay.com' || window.location.hostname === 'www.jake-pay.com';
   
   const [bootCompleted, setBootCompleted] = useState(false);
@@ -514,6 +521,29 @@ export default function Portfolio() {
     if (activeSelection === "overview") return null;
     return PROJECTS.find(p => p.id === activeSelection) || null;
   }, [activeSelection, PROJECTS]);
+
+  // --- Deep-link URL <-> state sync ---
+  // URL -> state: apply the path on initial load, browser back/forward, and once
+  // data arrives. Both effects compare before setting, so they converge without looping.
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const proj = resolveFolder(folderSlug, PROJECTS);
+    const desiredSelection = proj ? proj.id : "overview";
+    const desiredIndex =
+      proj && imageSeg ? resolveImageIndex(imageSeg, proj.gallery) : null;
+    if (desiredSelection !== activeSelection) setActiveSelection(desiredSelection);
+    if (desiredIndex !== lightboxIndex) setLightboxIndex(desiredIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderSlug, imageSeg, isDataLoaded, PROJECTS]);
+
+  // state -> URL: keep the address bar in sync with the open folder/image so it
+  // can be copied and shared. replace:true avoids polluting browser history.
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const target = buildPath(selectedProject, lightboxIndex);
+    if (target !== window.location.pathname) navigate(target, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject, lightboxIndex, isDataLoaded]);
 
   // Folder level items rendering filtering.
   // With no search: show only top-level folders (subfolders live inside their parent).

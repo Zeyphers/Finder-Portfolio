@@ -18,6 +18,10 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Portfolio />} />
             <Route path="/admin" element={<AdminPanel />} />
+            {/* Shareable deep links: /<folder> and /<folder>/<image>.
+                Static routes (e.g. /admin) still take precedence over these. */}
+            <Route path="/:folderSlug" element={<Portfolio />} />
+            <Route path="/:folderSlug/:imageSeg" element={<Portfolio />} />
             <Route path="*" element={<Portfolio />} />
           </Routes>
         </Suspense>
