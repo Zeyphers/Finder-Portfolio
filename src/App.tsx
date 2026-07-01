@@ -16,12 +16,12 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={<Portfolio />} />
             <Route path="/admin" element={<AdminPanel />} />
-            {/* Shareable deep links: /<folder> and /<folder>/<image>.
-                Static routes (e.g. /admin) still take precedence over these. */}
-            <Route path="/:folderSlug" element={<Portfolio />} />
-            <Route path="/:folderSlug/:imageSeg" element={<Portfolio />} />
+            {/* Everything else renders the portfolio. The catch-all also matches "/",
+                and supports arbitrary-depth deep links like
+                /<folder>/<subfolder>/<image> — parsed from the pathname in Portfolio.
+                A single Portfolio route avoids remounting (and replaying boot) when
+                navigating between folders/images. */}
             <Route path="*" element={<Portfolio />} />
           </Routes>
         </Suspense>

@@ -13,8 +13,8 @@ const ContactApp = lazy(() => import("./components/ContactApp").then(m => ({ def
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl } from "./api";
-import { useParams, useNavigate } from "react-router-dom";
-import { buildPath, resolveFolder, resolveImageIndex } from "./urlSlug";
+import { useLocation, useNavigate } from "react-router-dom";
+import { buildPath, resolvePath } from "./urlSlug";
 import { motion, useDragControls, AnimatePresence } from "motion/react";
 import { 
   Folder, 
@@ -178,8 +178,8 @@ export default function Portfolio() {
   const { projects: RAW_PROJECTS, links: EXTERNAL_LINKS, about, sidebar: RAW_SIDEBAR, isDataLoaded } = useAppletData();
 
   // Deep-link routing: the current folder/image are reflected in the URL so a
-  // specific folder or image can be linked and shared (see ./urlSlug).
-  const { folderSlug, imageSeg } = useParams();
+  // specific folder or image (at any nesting depth) can be linked and shared (see ./urlSlug).
+  const location = useLocation();
   const navigate = useNavigate();
 
   const isProd = window.location.hostname.includes('netlify.app') || window.location.hostname === 'jake-pay.com' || window.location.hostname === 'www.jake-pay.com';
@@ -523,25 +523,32 @@ export default function Portfolio() {
   }, [activeSelection, PROJECTS]);
 
   // --- Deep-link URL <-> state sync ---
-  // URL -> state: apply the path on initial load, browser back/forward, and once
-  // data arrives. Both effects compare before setting, so they converge without looping.
-  useEffect(() => {
-    if (!isDataLoaded) return;
-    const proj = resolveFolder(folderSlug, PROJECTS);
-    const desiredSelection = proj ? proj.id : "overview";
-    const desiredIndex =
-      proj && imageSeg ? resolveImageIndex(imageSeg, proj.gallery) : null;
-    if (desiredSelection !== activeSelection) setActiveSelection(desiredSelection);
-    if (desiredIndex !== lightboxIndex) setLightboxIndex(desiredIndex);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folderSlug, imageSeg, isDataLoaded, PROJECTS]);
+  // A guard so the two effects don't fight on the render where data first loads:
+  // when URL->state applies a change, the paired state->URL run must skip once
+  // (its `selectedProject` is still the pre-update value and would clobber the URL).
+  const pendingUrlApply = useRef(false);
 
-  // state -> URL: keep the address bar in sync with the open folder/image so it
-  // can be copied and shared. replace:true avoids polluting browser history.
+  // URL -> state: apply the path on initial load, browser back/forward, and once
+  // data arrives.
   useEffect(() => {
     if (!isDataLoaded) return;
-    const target = buildPath(selectedProject, lightboxIndex);
-    if (target !== window.location.pathname) navigate(target, { replace: true });
+    const { project, imageIndex } = resolvePath(location.pathname, PROJECTS);
+    const desiredSelection = project ? project.id : "overview";
+    if (desiredSelection !== activeSelection || imageIndex !== lightboxIndex) {
+      pendingUrlApply.current = true;
+      setActiveSelection(desiredSelection);
+      setLightboxIndex(imageIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, isDataLoaded, PROJECTS]);
+
+  // state -> URL: keep the address bar in sync with the open folder/image (full
+  // nested path) so it can be copied and shared. replace:true avoids history spam.
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    if (pendingUrlApply.current) { pendingUrlApply.current = false; return; }
+    const target = buildPath(selectedProject, lightboxIndex, PROJECTS);
+    if (target !== location.pathname) navigate(target, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject, lightboxIndex, isDataLoaded]);
 
