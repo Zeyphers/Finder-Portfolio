@@ -366,7 +366,24 @@ export default function Portfolio() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxZoom, setLightboxZoom] = useState<number>(1);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
-  
+
+  // Track viewport so the lightbox can switch between click-to-zoom (desktop)
+  // and pinch-to-zoom (mobile). Matches Tailwind's `md` breakpoint (768px).
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(max-width: 767px)").matches
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Pinch-gesture bookkeeping for the mobile lightbox.
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  const [isPinching, setIsPinching] = useState(false);
+
   // Lightbox idle state to auto-hide controls
   const [isLightboxIdle, setIsLightboxIdle] = useState(false);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -435,6 +452,9 @@ export default function Portfolio() {
       return;
     }
 
+    // On mobile, zoom is driven by pinch gestures rather than tap.
+    if (isMobile) return;
+
     if (lightboxZoom === 1) {
       setLightboxZoom(2.5);
       updateMousePos(e);
@@ -467,9 +487,50 @@ export default function Portfolio() {
     }
   };
 
+  // Distance between the two active fingers, used to derive the pinch scale.
+  const getTouchDist = (touches: TouchList) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  // Zoom toward the midpoint between the two fingers so the image scales around
+  // wherever the user is pinching.
+  const updatePinchOrigin = (e: React.TouchEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const x = Math.max(0, Math.min(100, ((midX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((midY - rect.top) / rect.height) * 100));
+    setMousePos({ x, y });
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      pinchRef.current = { startDist: getTouchDist(e.touches), startZoom: lightboxZoom };
+      setIsPinching(true);
+      updatePinchOrigin(e);
+    }
+  };
+
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (lightboxZoom > 1) {
+    if (e.touches.length === 2 && pinchRef.current) {
+      const ratio = getTouchDist(e.touches) / pinchRef.current.startDist;
+      const next = Math.min(5, Math.max(1, pinchRef.current.startZoom * ratio));
+      setLightboxZoom(next);
+      updatePinchOrigin(e);
+    } else if (lightboxZoom > 1 && e.touches.length === 1) {
+      // Single-finger pan while zoomed in.
       updateMousePos(e);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length < 2) {
+      pinchRef.current = null;
+      setIsPinching(false);
+      // Snap back to fit if the user pinched almost all the way out.
+      if (lightboxZoom < 1.05) setLightboxZoom(1);
     }
   };
 
@@ -735,19 +796,26 @@ export default function Portfolio() {
               {/* Display Image with zoom capability or YouTube Video embed */}
               <div 
                 className={`relative max-w-full max-h-full h-full p-2 overflow-hidden flex items-center justify-center ${
-                  selectedProject.gallery[lightboxIndex].isVideo 
-                    ? "w-[95vw] md:w-[85vw] aspect-video pointer-events-auto" 
-                    : lightboxZoom > 1 
-                      ? "pointer-events-auto" 
+                  selectedProject.gallery[lightboxIndex].isVideo
+                    ? "w-[95vw] md:w-[85vw] aspect-video pointer-events-auto"
+                    : (lightboxZoom > 1 || isMobile)
+                      ? "pointer-events-auto"
                       : "pointer-events-none"
                 }`}
-                style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : { 
+                style={selectedProject.gallery[lightboxIndex].isVideo ? undefined : {
                   transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
                   transform: `scale(${lightboxZoom})`,
-                  transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)' 
+                  // Skip the ease-out while actively pinching so the image tracks the fingers.
+                  transition: isPinching ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                  // Own the gesture on mobile: `pan-y` lets the page still scroll to the
+                  // process section at 1x while disabling the browser's native pinch-zoom;
+                  // `none` while zoomed so single-finger drags pan instead of scrolling.
+                  touchAction: isMobile ? (lightboxZoom > 1 ? 'none' : 'pan-y') : undefined,
                 }}
                 onMouseMove={handleMouseMove}
+                onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
               >
                 {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
                   <iframe 
@@ -1024,7 +1092,7 @@ export default function Portfolio() {
                       <div className={`text-[11px] font-semibold uppercase tracking-wider ${styles.textMuted} pl-1`}>
                         Project Folders
                       </div>
-                      <div className="flex flex-wrap gap-[10px] justify-start items-start">
+                      <div className="flex flex-wrap gap-[10px] justify-center md:justify-start items-start">
                         {filteredOverviewFolders.map(renderFolderCard)}
                       </div>
                     </div>
@@ -1045,7 +1113,7 @@ export default function Portfolio() {
                       <div className={`text-[11px] font-semibold uppercase tracking-wider ${styles.textMuted} pl-1`}>
                         Shortcuts & Documents
                       </div>
-                      <div className="flex flex-wrap gap-[10px] justify-start items-start">
+                      <div className="flex flex-wrap gap-[10px] justify-center md:justify-start items-start">
                         {/* File: About Me.rtf */}
                         {(searchQuery === "" || "about me.rtf".includes(searchQuery.toLowerCase())) && (
                           <div 
