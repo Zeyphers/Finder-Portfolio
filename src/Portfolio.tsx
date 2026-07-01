@@ -877,9 +877,12 @@ export default function Portfolio() {
               className="w-[95vw] md:w-[85vw] max-w-6xl mx-auto bg-slate-900/95 rounded-xl shadow-2xl mb-32 shrink-0 z-10 relative overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
-              <div 
+              {/* Quill inserts non-breaking spaces (U+00A0 / &nbsp;) into body copy, which glue
+                  words into unbreakable runs and force mid-word wrapping. Convert them to normal
+                  spaces so prose wraps at word boundaries (long single tokens still break via CSS). */}
+              <div
                 className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 whitespace-normal [overflow-wrap:break-word] [word-break:normal] [hyphens:none] [&_*]:max-w-full [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
-                dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml! }}
+                dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml!.replace(/&nbsp;|\u00A0/g, ' ') }}
               />
             </div>
           )}
