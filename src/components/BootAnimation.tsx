@@ -40,6 +40,11 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
   }, [config.appleLogoUrl]);
 
   useEffect(() => {
+    // Hold the progress animation until the logo is ready so the bar starts
+    // filling from 0 at the exact moment everything is revealed together —
+    // otherwise a first-time visitor sees the bar already partway when it fades in.
+    if (!logoReady) return;
+
     // Prepare audio
     if (config.audioUrl) {
       audioRef.current = new Audio(config.audioUrl);
@@ -97,7 +102,7 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
       isRunning = false;
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
     };
-  }, [config.audioUrl, config.durationMs]);
+  }, [config.audioUrl, config.durationMs, logoReady]);
 
   const [hasInteracted, setHasInteracted] = useState(false);
 
@@ -123,8 +128,8 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
       onTouchStart={handleInteraction}
     >
       {!hasInteracted && config.audioUrl && (
-        <div className="absolute top-8 left-1/2 -translate-x-1/2 w-max max-w-[90vw] text-xl text-gray-500 flex flex-wrap items-center justify-center gap-2 sm:gap-4 animate-pulse cursor-pointer z-10">
-          <VolumeX size={24} className="shrink-0" /> 
+        <div className={`absolute top-8 left-1/2 -translate-x-1/2 w-max max-w-[90vw] text-xl text-gray-500 flex flex-wrap items-center justify-center gap-2 sm:gap-4 animate-pulse cursor-pointer z-10 transition-opacity duration-300 ${logoReady ? 'opacity-100' : 'opacity-0'}`}>
+          <VolumeX size={24} className="shrink-0" />
           <span className="text-center">Tap anywhere to unmute</span>
         </div>
       )}
