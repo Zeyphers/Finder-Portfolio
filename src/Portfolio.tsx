@@ -36,6 +36,7 @@ import {
   Layers,
   Sparkles,
   ArrowLeft,
+  ArrowUp,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -617,39 +618,95 @@ export default function Portfolio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSelection, PROJECTS, history, historyIndex]);
 
-  // Mobile left-edge swipe: swipe in from the left edge to close the lightbox
-  // (when open) or step up one folder. Mirrors the iOS "back" edge gesture.
+  // Interactive left-edge back-swipe (mobile): drag in from the left edge and
+  // the current view fades/slides along with the finger — release past the
+  // threshold to close the lightbox or step up one folder; release early and
+  // it snaps back. Mirrors the iOS "back" edge gesture. Styles are written
+  // imperatively (not via state) so the drag tracks the finger at 60fps and
+  // doesn't fight framer-motion's mount/exit animations.
+  const galleryViewRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!isMobile) return;
-    let startX = 0, startY = 0, tracking = false;
-    const EDGE = 32;   // px from the left edge where the gesture may begin
-    const DIST = 70;   // min rightward travel to count as a back-swipe
+    const EDGE = 40;    // px from the left edge where the gesture may begin
+    const COMMIT = 12;  // horizontal travel before we claim the gesture
+    const DIST = 90;    // travel needed to trigger "back" on release
+    let startX = 0, startY = 0;
+    let tracking = false;   // finger started at the edge with somewhere to go back to
+    let committed = false;  // recognized as horizontal — we own it from here on
+
+    const target = (): HTMLElement | null =>
+      lightboxIndex !== null ? overlayRef.current : galleryViewRef.current;
+
+    const setDrag = (dx: number) => {
+      const el = target();
+      if (!el) return;
+      const p = Math.min(1, dx / 240);
+      el.style.transition = "none";
+      el.style.opacity = String(1 - 0.85 * p);
+      el.style.transform = `translateX(${dx * 0.35}px)`;
+    };
+
+    const resetDrag = (animate: boolean) => {
+      const el = target();
+      if (!el) return;
+      el.style.transition = animate ? "opacity 0.25s ease, transform 0.25s ease" : "";
+      el.style.opacity = "";
+      el.style.transform = "";
+      if (animate) setTimeout(() => { el.style.transition = ""; }, 300);
+    };
+
     const onStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) { tracking = false; return; }
+      tracking = committed = false;
+      if (e.touches.length !== 1) return;
       const t = e.touches[0];
-      tracking = t.clientX <= EDGE;
+      if (t.clientX > EDGE) return;
+      // Only track when there is somewhere to go back to (and not mid-zoom).
+      const canGoBack = lightboxIndex !== null ? lightboxZoom === 1 : activeSelection !== "overview";
+      if (!canGoBack) return;
+      tracking = true;
       startX = t.clientX;
       startY = t.clientY;
     };
+
+    const onMove = (e: TouchEvent) => {
+      if (!tracking || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (!committed) {
+        // Mostly-vertical movement means the user is scrolling — let go.
+        if (Math.abs(dy) > 14 && Math.abs(dy) > dx) { tracking = false; return; }
+        if (dx < COMMIT) return;
+        committed = true;
+      }
+      if (e.cancelable) e.preventDefault(); // stop the page scrolling under the drag
+      setDrag(Math.max(0, dx));
+    };
+
     const onEnd = (e: TouchEvent) => {
       if (!tracking) return;
       tracking = false;
-      const t = e.changedTouches[0];
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
-      // Require a mostly-horizontal rightward drag.
-      if (dx < DIST || Math.abs(dy) > Math.abs(dx)) return;
-      if (lightboxIndex !== null) {
-        if (lightboxZoom === 1) closeLightbox();
-      } else if (activeSelection !== "overview") {
-        goUpOneFolder();
+      if (!committed) return;
+      committed = false;
+      const dx = e.changedTouches[0].clientX - startX;
+      if (dx >= DIST) {
+        resetDrag(false); // clear inline styles so the normal exit animation runs clean
+        if (lightboxIndex !== null) closeLightbox();
+        else goUpOneFolder();
+      } else {
+        resetDrag(true); // didn't commit far enough — snap back
       }
     };
+
     document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onEnd, { passive: true });
+    document.addEventListener("touchcancel", onEnd, { passive: true });
     return () => {
       document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
+      document.removeEventListener("touchcancel", onEnd);
     };
   }, [isMobile, lightboxIndex, lightboxZoom, activeSelection, goUpOneFolder]);
 
@@ -1329,8 +1386,9 @@ export default function Portfolio() {
             ) : (
               // ==================== STATE 2: PROJECT CORRESPONDING GALLERY VIEW ====================
               selectedProject && (
-                <motion.div 
+                <motion.div
                   key={selectedProject.id}
+                  ref={galleryViewRef}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
@@ -1340,6 +1398,14 @@ export default function Portfolio() {
 
                   {/* Breadcrumb trail for nested-folder navigation */}
                   <div className="shrink-0 px-3 pt-2 pb-1 flex items-center gap-1 flex-wrap text-[13px]">
+                    <button
+                      onClick={goUpOneFolder}
+                      className="flex items-center gap-0.5 mr-1.5 shrink-0 text-blue-500 hover:text-blue-600 font-medium cursor-pointer"
+                      title="Go up one folder"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                      <span>Back</span>
+                    </button>
                     <button
                       onClick={() => navigateTo("overview")}
                       className={`hover:underline ${styles.textMuted} cursor-pointer`}
