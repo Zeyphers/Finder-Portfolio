@@ -4,6 +4,7 @@ import { useAppletData } from "./DataContext";
 import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings, LayoutList, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
+import { exportSiteZip, importSiteZip } from "./backupZip";
 import { ProgressiveImage } from "./components/ProgressiveImage";
 import { ProcessEditorModal } from "./components/ProcessEditorModal";
 import { FormattedTextarea } from "./components/FormattedTextarea";
@@ -50,6 +51,8 @@ export function AdminPanel() {
   const [backupsList, setBackupsList] = useState<any[]>([]);
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [uploadingGifs, setUploadingGifs] = useState(false);
+  // Progress message while a zip export/restore is running (null = idle).
+  const [zipProgress, setZipProgress] = useState<string | null>(null);
 
   const fetchBackups = async () => {
     setLoadingBackups(true);
@@ -331,6 +334,70 @@ export function AdminPanel() {
     }
     
     return lastData!.url;
+  };
+
+  // Download one self-contained zip: the live data.json plus every asset it
+  // references (readable filenames under images/). Read-only — never writes.
+  const handleExportZip = async () => {
+    setZipProgress("Fetching live site data…");
+    try {
+      const res = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to fetch site data (HTTP ${res.status})`);
+      const data = await res.json();
+
+      const { blob, failed } = await exportSiteZip(data, (msg) => setZipProgress(msg));
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `portfolio-backup_${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      if (failed.length > 0) {
+        alert(`Backup downloaded, but ${failed.length} asset(s) could not be fetched and are NOT in the zip:\n\n${failed.join("\n")}`);
+      }
+    } catch (err: any) {
+      console.error("Zip export failed:", err);
+      alert("Backup export failed: " + (err.message || String(err)));
+    } finally {
+      setZipProgress(null);
+    }
+  };
+
+  // Restore from a backup zip: re-upload every bundled asset through the
+  // normal upload endpoint, rewrite the data to point at the new uploads, and
+  // load it into the editor. Nothing is persisted until "Save Changes".
+  const handleRestoreZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!confirm(
+      "Restore from this zip? This will:\n" +
+      "• Re-upload every image in the zip to the site's storage\n" +
+      "• Replace the projects, about info, and sidebar in this editor\n\n" +
+      "The live site is NOT changed until you click 'Save Changes'."
+    )) return;
+
+    setZipProgress("Reading zip…");
+    try {
+      const { data, uploaded, failed } = await importSiteZip(file, uploadFileWithChunks, (msg) => setZipProgress(msg));
+
+      if (data.PROJECTS) setLocalProjects(data.PROJECTS);
+      if (data.ABOUT) setLocalAbout(data.ABOUT);
+      if (data.SIDEBAR) setLocalSidebar(data.SIDEBAR);
+
+      let msg = `Restore loaded into the editor (${uploaded} asset(s) re-uploaded).`;
+      if (failed.length > 0) {
+        msg += `\n\n${failed.length} asset(s) failed to upload and kept their original URLs:\n${failed.join("\n")}`;
+      }
+      msg += "\n\nReview the content, then click 'Save Changes' to make it live.";
+      alert(msg);
+    } catch (err: any) {
+      console.error("Zip restore failed:", err);
+      alert("Restore failed: " + (err.message || String(err)));
+    } finally {
+      setZipProgress(null);
+    }
   };
 
   const handleFolderIconUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1306,8 +1373,43 @@ if __name__ == "__main__":
 
               <div className="pt-6 border-t border-slate-200">
                 <h3 className="text-sm font-bold text-slate-900 mb-2">Data Management</h3>
-                <p className="text-xs text-slate-500 mb-4">Restore your portfolio data from a downloaded JSON backup file.</p>
-                
+                <p className="text-xs text-slate-500 mb-4">
+                  Download a single zip containing the full site data (data.json) plus every image it uses,
+                  browsable inside the zip. Restore the whole site from that same zip — images are re-uploaded
+                  automatically. Nothing goes live until you click 'Save Changes'.
+                </p>
+
+                <div className="flex flex-wrap gap-3 items-center">
+                  <button
+                    onClick={handleExportZip}
+                    disabled={zipProgress !== null}
+                    className={`${zipProgress !== null ? 'bg-slate-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2.5 rounded-md text-sm font-medium transition inline-flex items-center space-x-2 shadow-sm`}
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Full Backup (.zip)</span>
+                  </button>
+
+                  <label className={`${zipProgress !== null ? 'bg-slate-400 cursor-wait text-white' : 'cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700'} px-4 py-2.5 rounded-md text-sm font-medium transition inline-flex items-center space-x-2 border border-slate-300 shadow-sm`}>
+                    <Upload className="w-4 h-4" />
+                    <span>Restore from ZIP Backup</span>
+                    <input
+                      type="file"
+                      accept=".zip"
+                      className="hidden"
+                      disabled={zipProgress !== null}
+                      onChange={handleRestoreZip}
+                    />
+                  </label>
+                </div>
+
+                {zipProgress !== null && (
+                  <div className="mt-3 flex items-center space-x-2 text-sm text-blue-700">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>{zipProgress}</span>
+                  </div>
+                )}
+
+                <p className="text-xs text-slate-500 mt-6 mb-2">Or restore just the data from a JSON backup file (no images):</p>
                 <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-md text-sm font-medium transition inline-flex items-center space-x-2 border border-slate-300 shadow-sm">
                   <Upload className="w-4 h-4" />
                   <span>Restore from JSON Backup</span>
