@@ -384,6 +384,11 @@ export default function Portfolio() {
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
   const [isPinching, setIsPinching] = useState(false);
 
+  // Single-finger gesture bookkeeping: swipe-down-to-dismiss and double-tap-to-zoom.
+  const swipeRef = useRef<{ x: number; y: number; time: number; scrollTop: number } | null>(null);
+  const lastTapRef = useRef<number>(0);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+
   // Lightbox idle state to auto-hide controls
   const [isLightboxIdle, setIsLightboxIdle] = useState(false);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -510,6 +515,32 @@ export default function Portfolio() {
       pinchRef.current = { startDist: getTouchDist(e.touches), startZoom: lightboxZoom };
       setIsPinching(true);
       updatePinchOrigin(e);
+      swipeRef.current = null;
+      return;
+    }
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      // Record the touch origin for swipe-down-to-dismiss.
+      swipeRef.current = {
+        x: t.clientX,
+        y: t.clientY,
+        time: Date.now(),
+        scrollTop: overlayRef.current?.scrollTop ?? 0,
+      };
+      // Double-tap to zoom (mobile): two quick taps toggle between fit and 2.5x,
+      // zooming toward the tapped point.
+      const now = Date.now();
+      if (isMobile && now - lastTapRef.current < 300) {
+        lastTapRef.current = 0;
+        if (lightboxZoom === 1) {
+          updateMousePos(e);
+          setLightboxZoom(2.5);
+        } else {
+          setLightboxZoom(1);
+        }
+      } else {
+        lastTapRef.current = now;
+      }
     }
   };
 
@@ -527,10 +558,25 @@ export default function Portfolio() {
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length < 2) {
+      const wasPinching = isPinching;
       pinchRef.current = null;
       setIsPinching(false);
       // Snap back to fit if the user pinched almost all the way out.
       if (lightboxZoom < 1.05) setLightboxZoom(1);
+
+      // Swipe-down-to-dismiss: a single-finger downward flick at fit scale,
+      // starting from the top of the scroll area, closes the lightbox.
+      const start = swipeRef.current;
+      swipeRef.current = null;
+      if (!wasPinching && start && lightboxZoom === 1 && e.changedTouches.length) {
+        const t = e.changedTouches[0];
+        const dx = t.clientX - start.x;
+        const dy = t.clientY - start.y;
+        const dt = Date.now() - start.time;
+        if (start.scrollTop <= 0 && dy > 90 && dy > Math.abs(dx) * 1.5 && dt < 600) {
+          closeLightbox();
+        }
+      }
     }
   };
 
@@ -561,6 +607,51 @@ export default function Portfolio() {
       setActiveSelection(history[idx]);
     }
   };
+
+  // Step up to the parent folder (or the overview when already at a top-level folder).
+  const goUpOneFolder = React.useCallback(() => {
+    if (activeSelection === "overview") return;
+    const cur = PROJECTS.find(p => p.id === activeSelection);
+    const parentId = cur?.parentId;
+    navigateTo(parentId && PROJECTS.some(p => p.id === parentId) ? parentId : "overview");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSelection, PROJECTS, history, historyIndex]);
+
+  // Mobile left-edge swipe: swipe in from the left edge to close the lightbox
+  // (when open) or step up one folder. Mirrors the iOS "back" edge gesture.
+  useEffect(() => {
+    if (!isMobile) return;
+    let startX = 0, startY = 0, tracking = false;
+    const EDGE = 32;   // px from the left edge where the gesture may begin
+    const DIST = 70;   // min rightward travel to count as a back-swipe
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) { tracking = false; return; }
+      const t = e.touches[0];
+      tracking = t.clientX <= EDGE;
+      startX = t.clientX;
+      startY = t.clientY;
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      // Require a mostly-horizontal rightward drag.
+      if (dx < DIST || Math.abs(dy) > Math.abs(dx)) return;
+      if (lightboxIndex !== null) {
+        if (lightboxZoom === 1) closeLightbox();
+      } else if (activeSelection !== "overview") {
+        goUpOneFolder();
+      }
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [isMobile, lightboxIndex, lightboxZoom, activeSelection, goUpOneFolder]);
 
   // Safe wrapper for opening external Web location links
   const handleLinkOpen = (url: string) => {
@@ -742,12 +833,13 @@ export default function Portfolio() {
       {/* 7. macOS Preview Lightbox Overlay */}
       <AnimatePresence>
         {lightboxIndex !== null && selectedProject && (
-          <motion.div 
+          <motion.div
+            ref={overlayRef}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center overflow-y-auto osx-scrollbar"
+            className={`fixed inset-0 z-50 bg-black/90 flex flex-col items-center ${lightboxZoom > 1 ? "overflow-hidden" : "overflow-y-auto osx-scrollbar"}`}
             onClick={closeLightbox}
             onMouseMove={resetLightboxIdle}
             onKeyDown={resetLightboxIdle}
