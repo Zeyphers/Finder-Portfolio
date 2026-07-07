@@ -50,7 +50,7 @@ export const handler = async (event: any) => {
       "User-Agent": UA,
     };
     
-    const apiUrl = `${base}/v1/catalog/${storefront}/playlists/${id}?include=tracks&extend=editorialArtwork`;
+    const apiUrl = `${base}/v1/catalog/${encodeURIComponent(storefront)}/playlists/${encodeURIComponent(id)}?include=tracks&extend=editorialArtwork`;
     const apiRes = await fetch(apiUrl, { headers });
 
     if (!apiRes.ok) {

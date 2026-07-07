@@ -23,6 +23,22 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
+  // Finish the boot (normally or via skip) and remember that this visitor has
+  // seen it, so return visits get a much shorter boot.
+  const finish = React.useCallback(() => {
+    try { localStorage.setItem("boot_seen_v1", "1"); } catch {}
+    onCompleteRef.current();
+  }, []);
+
+  // Escape skips the boot entirely.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") finish();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [finish]);
+
   // Preload the custom logo and reveal the bar once it's ready. A safety timeout
   // ensures a slow or broken logo URL never blocks the boot sequence.
   useEffect(() => {
@@ -52,7 +68,12 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     }
 
     let isRunning = true;
-    const totalDuration = Math.max(100, config.durationMs || 5000);
+    // Returning visitors have seen the full boot before — cap it so they reach
+    // the content quickly while keeping the effect.
+    let seenBefore = false;
+    try { seenBefore = localStorage.getItem("boot_seen_v1") === "1"; } catch {}
+    const configured = Math.max(100, config.durationMs || 5000);
+    const totalDuration = seenBefore ? Math.min(configured, 1500) : configured;
     const startTime = Date.now();
     let currentProgress = 0;
     
@@ -91,7 +112,7 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
       } else {
         timeoutIdRef.current = setTimeout(() => {
           if (!isRunning) return;
-          onCompleteRef.current();
+          finish();
         }, 100);
       }
     };
@@ -156,6 +177,11 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
             style={{ width: `${progress}%` }}
           />
         </div>
+      </div>
+
+      {/* Skip hint (keyboard only — taps are reserved for unmuting) */}
+      <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 text-sm text-gray-600 transition-opacity duration-300 ${logoReady ? 'opacity-100' : 'opacity-0'}`}>
+        Press Esc to skip
       </div>
     </div>
   );

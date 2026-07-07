@@ -31,15 +31,16 @@
     />
     <meta name="twitter:image" content="https://jacobszczepaniak.com/og-image.png" />
 
-    <!-- Preconnect to font + image hosts so their first requests start sooner -->
+    <!-- Preconnect to font hosts so their first requests start sooner.
+         (GitHub-hosted images go through the same-origin /api/image-proxy, so no
+         preconnect to raw.githubusercontent.com is needed.) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preconnect" href="https://raw.githubusercontent.com" />
-    <link rel="dns-prefetch" href="https://raw.githubusercontent.com" />
-    <!-- Load fonts via a non-render-blocking <link> instead of a CSS @import -->
+    <!-- Load fonts via a non-render-blocking <link> instead of a CSS @import.
+         Only the Inter weights the UI actually uses (400-800; 300 is unused). -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=VT323&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=VT323&display=swap"
     />
   </head>
   <body>

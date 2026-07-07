@@ -69,21 +69,66 @@ async function isSafeImageUrl(targetUrl: string): Promise<boolean> {
   }
 }
 
+// Fetch for the image proxy that does NOT blindly follow redirects: each hop is
+// re-validated against the SSRF guard, so a public URL can't 302 to an internal
+// address (cloud metadata, localhost, etc.). `headersFor` decides per-hop request
+// headers so credentials are only ever sent to the host they belong to.
+async function fetchImageSafely(
+  targetUrl: string,
+  headersFor?: (u: URL) => Record<string, string> | undefined
+): Promise<Response | null> {
+  let current = targetUrl;
+  for (let hop = 0; hop < 4; hop++) {
+    if (!(await isSafeImageUrl(current))) return null;
+    const parsed = new URL(current);
+    const r = await fetch(current, { redirect: "manual", headers: headersFor?.(parsed) });
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.get("location");
+      if (!loc) return null;
+      current = new URL(loc, current).toString();
+      continue;
+    }
+    return r;
+  }
+  return null; // too many redirects
+}
+
+// The proxy exists to serve images. Refusing to relay text/html & friends stops it
+// from being used to serve attacker-controlled pages from this site's own origin.
+function isAllowedImageContentType(ct: string | null): boolean {
+  if (!ct) return true; // some image hosts omit it; <img> won't execute anything
+  const v = ct.split(";")[0].trim().toLowerCase();
+  return v.startsWith("image/") || v.startsWith("video/") || v === "application/octet-stream";
+}
+
+// Escape user-supplied text before interpolating it into HTML (contact emails).
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Constant-time string comparison (hash first so lengths never short-circuit).
+function safeEqual(a: string, b: string): boolean {
+  const ha = crypto.createHash("sha256").update(String(a)).digest();
+  const hb = crypto.createHash("sha256").update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use((req, res, next) => {
     console.log(`[REQUEST] ${req.method} ${req.url}`);
-    const origin = req.headers.origin;
-    if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
+    // Public read API: wildcard CORS is fine, but never combined with
+    // Allow-Credentials (auth uses Bearer headers, not cookies).
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,Authorization,Accept');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') {
       res.status(200).end();
       return;
@@ -183,6 +228,10 @@ async function startServer() {
       if (!subject || !message || !name || !contactInfo) {
         return res.status(400).json({ success: false, error: "All fields are required." });
       }
+      if (String(name).length > 200 || String(contactInfo).length > 200 ||
+          String(subject).length > 300 || String(message).length > 5000) {
+        return res.status(400).json({ success: false, error: "Message too long." });
+      }
 
       console.log(`[Email API] Request received: ${name} <${contactInfo}> - ${subject}`);
       const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -196,15 +245,17 @@ async function startServer() {
       const { Resend } = await import("resend");
       const resend = new Resend(RESEND_API_KEY);
 
+      // Escape user input so a visitor can't inject their own HTML (links, images,
+      // fake content) into the trusted-looking notification email.
       const htmlContent = `
         <div style="font-family: sans-serif;">
           <h2>New message from Portfolio Contact Form</h2>
-          <p><strong>Name:</strong> ${name}</p>
-          <p><strong>Contact Info:</strong> ${contactInfo}</p>
+          <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+          <p><strong>Contact Info:</strong> ${escapeHtml(contactInfo)}</p>
           <hr />
-          <p><strong>Subject:</strong> ${subject}</p>
+          <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
           <p><strong>Message:</strong></p>
-          <p style="white-space: pre-wrap;">${message}</p>
+          <p style="white-space: pre-wrap;">${escapeHtml(message)}</p>
         </div>
       `;
 
@@ -230,6 +281,11 @@ async function startServer() {
     }
   });
 
+  // Throttle failed logins per IP so credentials can't be brute-forced.
+  const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+  const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+  const LOGIN_MAX_FAILURES = 10;
+
   app.post("/api/login", (req, res) => {
     const { username, password } = req.body;
     const validUser = process.env.ADMIN_USERNAME;
@@ -240,9 +296,22 @@ async function startServer() {
       return res.status(500).json({ success: false, message: "Server auth is not configured" });
     }
 
-    if (username === validUser && password === validPass) {
+    const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown").toString().split(",")[0].trim();
+    const now = Date.now();
+    let attempts = loginAttempts.get(ip);
+    if (attempts && now > attempts.resetAt) attempts = undefined;
+    if (attempts && attempts.count >= LOGIN_MAX_FAILURES) {
+      return res.status(429).json({ success: false, message: "Too many attempts. Try again later." });
+    }
+
+    if (safeEqual(username || "", validUser) && safeEqual(password || "", validPass)) {
+      loginAttempts.delete(ip);
       res.json({ success: true, token: signToken(username) });
     } else {
+      loginAttempts.set(ip, {
+        count: (attempts?.count || 0) + 1,
+        resetAt: attempts?.resetAt || now + LOGIN_WINDOW_MS,
+      });
       res.status(401).json({ success: false, message: "Invalid credentials" });
     }
   });
@@ -489,27 +558,34 @@ async function startServer() {
     }
 
     try {
-      const fetchOptions: RequestInit = {};
-      
-      // If it's a github raw URL, authenticate the request with the backend token
-      if (targetUrl.startsWith("https://raw.githubusercontent.com/") || targetUrl.includes("github.com")) {
+      // Attach the GitHub token ONLY when the request host is exactly GitHub's
+      // raw/API hosts — matching on the URL *string* would let any URL that merely
+      // contains "github.com" (e.g. https://evil.com/github.com) receive the token.
+      const githubHosts = new Set(["raw.githubusercontent.com", "api.github.com", "github.com"]);
+      const headersFor = (u: URL): Record<string, string> | undefined => {
         const token = process.env.GITHUB_TOKEN;
-        if (token) {
-          fetchOptions.headers = {
-            "Authorization": `token ${token}`
-          };
+        if (token && githubHosts.has(u.hostname.toLowerCase())) {
+          return { "Authorization": `token ${token}` };
         }
+        return undefined;
+      };
+
+      const upstreamRes = await fetchImageSafely(targetUrl, headersFor);
+      if (!upstreamRes) {
+        return res.status(400).send("Blocked URL");
       }
-      
-      const upstreamRes = await fetch(targetUrl, fetchOptions);
       if (!upstreamRes.ok) {
         return res.status(upstreamRes.status).send(`Failed to fetch image: ${upstreamRes.statusText}`);
       }
-      
+
       const contentType = upstreamRes.headers.get("content-type");
+      if (!isAllowedImageContentType(contentType)) {
+        return res.status(400).send("Blocked content type");
+      }
       if (contentType) {
         res.setHeader("Content-Type", contentType);
       }
+      res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       const buffer = await upstreamRes.arrayBuffer();
       res.send(Buffer.from(buffer));
@@ -571,7 +647,7 @@ async function startServer() {
       "User-Agent": UA,
     };
     const res = await fetch(
-      `${base}/v1/catalog/${storefront}/playlists/${id}?include=tracks&l=en-US`,
+      `${base}/v1/catalog/${encodeURIComponent(storefront)}/playlists/${encodeURIComponent(id)}?include=tracks&l=en-US`,
       { headers }
     );
     if (!res.ok) throw new Error(`amp-api ${res.status}`);

@@ -69,12 +69,57 @@ async function isSafeImageUrl(targetUrl: string): Promise<boolean> {
   }
 }
 
+// Fetch for the image proxy that does NOT blindly follow redirects: each hop is
+// re-validated against the SSRF guard, so a public URL can't 302 to an internal
+// address (cloud metadata, localhost, etc.).
+async function fetchImageSafely(targetUrl: string): Promise<Response | null> {
+  let current = targetUrl;
+  for (let hop = 0; hop < 4; hop++) {
+    if (!(await isSafeImageUrl(current))) return null;
+    const r = await fetch(current, { redirect: "manual" });
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.get("location");
+      if (!loc) return null;
+      current = new URL(loc, current).toString();
+      continue;
+    }
+    return r;
+  }
+  return null; // too many redirects
+}
+
+// The proxy exists to serve images. Refusing to relay text/html & friends stops it
+// from being used to serve attacker-controlled pages from this site's own origin.
+function isAllowedImageContentType(ct: string | null): boolean {
+  if (!ct) return true; // some image hosts omit it; <img> won't execute anything
+  const v = ct.split(";")[0].trim().toLowerCase();
+  return v.startsWith("image/") || v.startsWith("video/") || v === "application/octet-stream";
+}
+
+// Escape user-supplied text before interpolating it into HTML (contact emails).
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Constant-time string comparison (hash first so lengths never short-circuit).
+function safeEqual(a: string, b: string): boolean {
+  const ha = crypto.createHash("sha256").update(String(a)).digest();
+  const hb = crypto.createHash("sha256").update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 const app = express();
 
+// Public read API: wildcard CORS is fine, but never combined with
+// credentials (auth uses Bearer headers, not cookies).
 app.use(cors({
   origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  credentials: true
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
 }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -113,6 +158,10 @@ router.post("/contact", async (req, res) => {
     if (!subject || !message || !name || !contactInfo) {
       return res.status(400).json({ success: false, error: "All fields are required." });
     }
+    if (String(name).length > 200 || String(contactInfo).length > 200 ||
+        String(subject).length > 300 || String(message).length > 5000) {
+      return res.status(400).json({ success: false, error: "Message too long." });
+    }
 
     console.log(`[Email API] Request received: ${name} <${contactInfo}> - ${subject}`);
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -125,15 +174,17 @@ router.post("/contact", async (req, res) => {
 
     const resend = new Resend(RESEND_API_KEY);
 
+    // Escape user input so a visitor can't inject their own HTML (links, images,
+    // fake content) into the trusted-looking notification email.
     const htmlContent = `
       <div style="font-family: sans-serif;">
         <h2>New message from Portfolio Contact Form</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Contact Info:</strong> ${contactInfo}</p>
+        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+        <p><strong>Contact Info:</strong> ${escapeHtml(contactInfo)}</p>
         <hr />
-        <p><strong>Subject:</strong> ${subject}</p>
+        <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
         <p><strong>Message:</strong></p>
-        <p style="white-space: pre-wrap;">${message}</p>
+        <p style="white-space: pre-wrap;">${escapeHtml(message)}</p>
       </div>
     `;
 
@@ -159,6 +210,13 @@ router.post("/contact", async (req, res) => {
   }
 });
 
+// Throttle failed logins per IP so credentials can't be brute-forced. In-memory,
+// so it's per warm Lambda instance — best-effort, but it still slows an attacker
+// hammering one instance to a crawl.
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 10;
+
 router.post("/login", (req, res) => {
   const { username, password } = req.body;
   const validUser = process.env.ADMIN_USERNAME;
@@ -169,9 +227,22 @@ router.post("/login", (req, res) => {
     return res.status(500).json({ success: false, message: "Server auth is not configured" });
   }
 
-  if (username === validUser && password === validPass) {
+  const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").toString().split(",")[0].trim();
+  const now = Date.now();
+  let attempts = loginAttempts.get(ip);
+  if (attempts && now > attempts.resetAt) attempts = undefined;
+  if (attempts && attempts.count >= LOGIN_MAX_FAILURES) {
+    return res.status(429).json({ success: false, message: "Too many attempts. Try again later." });
+  }
+
+  if (safeEqual(username || "", validUser) && safeEqual(password || "", validPass)) {
+    loginAttempts.delete(ip);
     res.json({ success: true, token: signToken(username) });
   } else {
+    loginAttempts.set(ip, {
+      count: (attempts?.count || 0) + 1,
+      resetAt: attempts?.resetAt || now + LOGIN_WINDOW_MS,
+    });
     res.status(401).json({ success: false, message: "Invalid credentials" });
   }
 });
@@ -410,20 +481,29 @@ router.get("/image-proxy", async (req, res) => {
      return;
   }
 
-  if (!(await isSafeImageUrl(targetUrl))) {
-    return res.status(400).send("Blocked URL");
-  }
-
   try {
-    const upstreamRes = await fetch(targetUrl);
+    const upstreamRes = await fetchImageSafely(targetUrl);
+    if (!upstreamRes) {
+      return res.status(400).send("Blocked URL");
+    }
     if (!upstreamRes.ok) {
       return res.status(upstreamRes.status).send(`Failed to fetch image`);
     }
     const contentType = upstreamRes.headers.get("content-type");
+    if (!isAllowedImageContentType(contentType)) {
+      return res.status(400).send("Blocked content type");
+    }
     if (contentType) res.setHeader("Content-Type", contentType);
+    res.setHeader("X-Content-Type-Options", "nosniff");
     // Let the browser and Netlify's CDN cache proxied images so they aren't
     // re-fetched (and the function isn't cold-started) on every visit.
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    // Netlify's edge only caches function responses when this header is present.
+    // Netlify-Vary is required because the image is selected by the ?url= query
+    // param — without it the edge would key the cache on the path alone and
+    // serve one cached image for every proxied URL.
+    res.setHeader("Netlify-CDN-Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Netlify-Vary", "query");
     const buffer = await upstreamRes.arrayBuffer();
     res.send(Buffer.from(buffer));
   } catch (e: any) {

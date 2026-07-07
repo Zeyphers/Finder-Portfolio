@@ -35,7 +35,11 @@ export default async (req: Request, context: any) => {
     return new Response(blobStream, {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=31536000, immutable"
+        "Cache-Control": "public, max-age=31536000, immutable",
+        // Cache-Control only reaches the browser; this one tells Netlify's edge to
+        // cache the response too, so each image invokes the function once per edge
+        // node instead of once per visitor.
+        "Netlify-CDN-Cache-Control": "public, max-age=31536000, immutable"
       }
     });
 

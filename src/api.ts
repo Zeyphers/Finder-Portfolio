@@ -40,3 +40,21 @@ export const getImageUrl = (url: string): string => {
   }
   return url;
 };
+
+// Grid/thumbnail variant: on Netlify, route through the built-in Image CDN so the
+// masonry grid downloads a resized WebP instead of the full-resolution original
+// (the lightbox still uses getImageUrl for full quality). The source is always a
+// same-site path (uploads or the image-proxy), so no remote_images allowlist is
+// needed. Skipped for GIFs (to keep animation) and SVGs (no raster transform).
+export const getThumbUrl = (url: string, width = 640): string => {
+  const full = getImageUrl(url);
+  if (!full) return full;
+  const hostname = window.location.hostname;
+  // The Image CDN only exists on Netlify — dev/Cloud Run serve the original.
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".run.app")) {
+    return full;
+  }
+  const lower = url.toLowerCase().split("?")[0];
+  if (lower.endsWith(".gif") || lower.endsWith(".svg")) return full;
+  return `/.netlify/images?url=${encodeURIComponent(full)}&w=${width}&q=75`;
+};

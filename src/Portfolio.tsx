@@ -12,7 +12,7 @@ const ContactApp = lazy(() => import("./components/ContactApp").then(m => ({ def
 // Import data context for global state
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
-import { getImageUrl } from "./api";
+import { getImageUrl, getThumbUrl } from "./api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { buildPath, resolvePath } from "./urlSlug";
 import { motion, useDragControls, AnimatePresence } from "motion/react";
@@ -50,7 +50,6 @@ import {
   ChevronDown,
   Music
 } from "lucide-react";
-import 'react-quill-new/dist/quill.snow.css';
 
 const getYoutubeEmbedUrl = (url: string): string => {
   if (!url) return "";
@@ -122,11 +121,12 @@ const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedPro
               const project = cell.project;
               return (
                 <div key={`folder-${project.id}`} className="w-full">
-                  <motion.div
+                  <motion.button
+                    type="button"
                     onClick={() => onFolderClick?.(project.id)}
                     whileTap={{ scale: 0.94 }}
                     transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                    className="group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full"
+                    className="group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
                   >
                     <div className="w-3/5 aspect-square flex items-center justify-center">
                       {project.folderIconImage ? (
@@ -136,7 +136,7 @@ const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedPro
                       )}
                     </div>
                     <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${textMutedStyle} -mt-1 break-words leading-tight w-full px-1`}>{project.name.split(" — ")[0]}</div>
-                  </motion.div>
+                  </motion.button>
                 </div>
               );
             }
@@ -150,22 +150,26 @@ const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedPro
             else if (img.url.toLowerCase().endsWith(".jpg") || img.url.toLowerCase().endsWith(".jpeg")) extension = "jpg";
             if (img.isVideo) extension = "mp4";
             const filename = img.fileName || `${baseName}_asset_${index + 1}.${extension}`;
+            // The grid shows a resized thumbnail; the lightbox loads the full image.
+            const displaySrc = getThumbUrl(img.url);
             return (
               <div key={`img-${index}`} className="w-full">
-                <div
+                <button
+                  type="button"
                   onClick={() => {
-                    // Check load state at click time so it reflects the latest status.
-                    if (img.isVideo || loadedImagesCache.has(getImageUrl(img.url))) onImageClick(index);
+                    // Check load state at click time so it reflects the latest status
+                    // (either the thumbnail or the full image counts as loaded).
+                    if (img.isVideo || loadedImagesCache.has(displaySrc) || loadedImagesCache.has(getImageUrl(img.url))) onImageClick(index);
                     else playErrorSound();
                   }}
-                  className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full`}
+                  className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                 >
                   <div className="w-full relative p-1" style={{ aspectRatio: img.isVideo ? "16 / 9" : (imageAspectRatios[img.url] ? `${imageAspectRatios[img.url]}` : "1 / 1") }}>
-                    <ProgressiveImage src={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
+                    <ProgressiveImage src={displaySrc} fallbackSrc={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
                     {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
                   </div>
                   <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${textMutedStyle} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
-                </div>
+                </button>
               </div>
             );
           })}
@@ -183,7 +187,13 @@ export default function Portfolio() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isProd = window.location.hostname.includes('netlify.app') || window.location.hostname === 'jake-pay.com' || window.location.hostname === 'www.jake-pay.com';
+  // Treat every hostname except the dev environments as production, so test
+  // content stays hidden on any live domain (netlify.app, custom domains, etc.).
+  const isProd = !(
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.endsWith(".run.app")
+  );
   
   const [bootCompleted, setBootCompleted] = useState(false);
   
@@ -215,44 +225,106 @@ export default function Portfolio() {
     setErrorSoundUrl(about?.errorSoundUrl);
   }, [about?.errorSoundUrl]);
   
+  // Navigation active state can be "overview" or the ID of a project ("project-1", "project-2", etc.)
+  // (declared before the preloader below, which prioritizes the open folder's images)
+  const [activeSelection, setActiveSelection] = useState<string>("overview");
+
   // Preload image dimensions so masonry doesn't jump
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const preloadedRef = React.useRef<Set<string>>(new Set());
-  
+
+  // Aspect ratios arrive one per image; batch them into a single state update per
+  // frame so the whole Portfolio tree doesn't re-render once per loaded image.
+  const pendingRatiosRef = useRef<Record<string, number>>({});
+  const ratioFlushRef = useRef(false);
+  const queueRatio = React.useCallback((key: string, ratio: number) => {
+    pendingRatiosRef.current[key] = ratio;
+    if (ratioFlushRef.current) return;
+    ratioFlushRef.current = true;
+    requestAnimationFrame(() => {
+      ratioFlushRef.current = false;
+      const batch = pendingRatiosRef.current;
+      pendingRatiosRef.current = {};
+      setImageAspectRatios(prev => ({ ...prev, ...batch }));
+    });
+  }, []);
+
+  // Tiered image preloader. Instead of firing a request for every image on the
+  // whole site at once (which floods a first visit's bandwidth), a small shared
+  // queue loads a few images at a time: the currently open folder's images are
+  // queued at the front immediately, everything else waits for browser idle time.
+  type PreloadTask = { src: string; ratioKey?: string };
+  const preloadQueueRef = useRef<{ list: PreloadTask[]; active: number }>({ list: [], active: 0 });
+
+  const pumpPreloadQueue = React.useCallback(() => {
+    const q = preloadQueueRef.current;
+    while (q.active < 4 && q.list.length > 0) {
+      const task = q.list.shift()!;
+      q.active++;
+      const i = new Image();
+      const done = (ok: boolean) => {
+        q.active--;
+        if (ok) {
+          loadedImagesCache.add(task.src);
+          // Capture the average colour now so the placeholder can use it later.
+          computeAvgColor(i, task.src);
+          if (task.ratioKey && i.width && i.height) {
+            queueRatio(task.ratioKey, i.width / i.height);
+          }
+        }
+        pumpPreloadQueue();
+      };
+      i.onload = () => done(true);
+      i.onerror = () => done(false);
+      i.src = task.src;
+    }
+  }, [queueRatio]);
+
+  const enqueuePreload = React.useCallback((tasks: PreloadTask[], front: boolean) => {
+    if (tasks.length === 0) return;
+    const q = preloadQueueRef.current;
+    if (front) q.list.unshift(...tasks);
+    else q.list.push(...tasks);
+    pumpPreloadQueue();
+  }, [pumpPreloadQueue]);
+
   useEffect(() => {
+    const galleryTasks = (p: Project): PreloadTask[] => {
+      const tasks: PreloadTask[] = [];
+      p.gallery.forEach(img => {
+        if (img.isVideo || preloadedRef.current.has(img.url)) return;
+        preloadedRef.current.add(img.url);
+        // Preload the same thumbnail URL the grid renders.
+        tasks.push({ src: getThumbUrl(img.url), ratioKey: img.url });
+      });
+      return tasks;
+    };
+
+    // Tier 1 (now): the open folder's images, then all folder icons.
+    const current = PROJECTS.find(p => p.id === activeSelection);
+    if (current) enqueuePreload(galleryTasks(current), true);
+
+    const iconTasks: PreloadTask[] = [];
     PROJECTS.forEach(p => {
-      // Preload folder icon
       if (p.folderIconImage && !preloadedRef.current.has(p.folderIconImage)) {
         preloadedRef.current.add(p.folderIconImage);
-        const folderUrl = getImageUrl(p.folderIconImage);
-        const folderImg = new Image();
-        folderImg.src = folderUrl;
-        folderImg.onload = () => {
-          loadedImagesCache.add(folderUrl);
-        };
+        // The folder cards render this URL as-is, so preload it as-is too.
+        iconTasks.push({ src: p.folderIconImage });
       }
-      p.gallery.forEach(img => {
-        if (img.isVideo) return;
-        if (!preloadedRef.current.has(img.url)) {
-          preloadedRef.current.add(img.url);
-          const i = new Image();
-          const pUrl = getImageUrl(img.url);
-          i.src = pUrl;
-          i.onload = () => {
-            loadedImagesCache.add(pUrl);
-            // Capture the average colour now so the placeholder can use it later.
-            computeAvgColor(i, pUrl);
-            if (i.width && i.height) {
-              setImageAspectRatios(prev => ({ ...prev, [img.url]: i.width / i.height }));
-            }
-          };
-        }
+    });
+    enqueuePreload(iconTasks, false);
+
+    // Tier 2 (idle): every other folder's images, so likely next clicks are warm
+    // without competing with the current view.
+    const idle: (cb: () => void) => number =
+      (window as any).requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500));
+    idle(() => {
+      PROJECTS.forEach(p => {
+        if (p.id !== activeSelection) enqueuePreload(galleryTasks(p), false);
       });
     });
-  }, [PROJECTS]);
+  }, [PROJECTS, activeSelection, enqueuePreload]);
 
-  // Navigation active state can be "overview" or the ID of a project ("project-1", "project-2", etc.)
-  const [activeSelection, setActiveSelection] = useState<string>("overview");
   const dragControls = useDragControls();
   
   // Light/Dark Theme Controllers
@@ -752,12 +824,24 @@ export default function Portfolio() {
   }, [location.pathname, isDataLoaded, PROJECTS]);
 
   // state -> URL: keep the address bar in sync with the open folder/image (full
-  // nested path) so it can be copied and shared. replace:true avoids history spam.
+  // nested path) so it can be copied and shared. Folder changes PUSH a history
+  // entry so the browser Back button steps back through folders instead of
+  // leaving the site; lightbox-only changes (and the initial sync) REPLACE so
+  // flipping through images doesn't spam history.
+  const lastSyncedSelectionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isDataLoaded) return;
-    if (pendingUrlApply.current) { pendingUrlApply.current = false; return; }
+    const currentSelection = selectedProject?.id ?? "overview";
+    if (pendingUrlApply.current) {
+      pendingUrlApply.current = false;
+      lastSyncedSelectionRef.current = currentSelection;
+      return;
+    }
+    const folderChanged =
+      lastSyncedSelectionRef.current !== null && lastSyncedSelectionRef.current !== currentSelection;
+    lastSyncedSelectionRef.current = currentSelection;
     const target = buildPath(selectedProject, lightboxIndex, PROJECTS);
-    if (target !== location.pathname) navigate(target, { replace: true });
+    if (target !== location.pathname) navigate(target, { replace: !folderChanged });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject, lightboxIndex, isDataLoaded]);
 
@@ -809,12 +893,13 @@ export default function Portfolio() {
 
   // Reusable Finder-style folder card (used by the overview grid and subfolder grids).
   const renderFolderCard = (project: Project) => (
-    <motion.div
+    <motion.button
+      type="button"
       key={project.id}
       onClick={() => navigateTo(project.id)}
       whileTap={{ scale: 0.94 }}
       transition={{ type: "spring", stiffness: 500, damping: 20 }}
-      className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+      className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
     >
       {project.folderIconImage ? (
         <div className="w-[140px] h-[140px] mb-1 flex items-center justify-center p-1">
@@ -832,7 +917,7 @@ export default function Portfolio() {
       <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} leading-tight w-full break-words mt-2 px-1`}>
         {project.name.split(" — ")[0]}
       </span>
-    </motion.div>
+    </motion.button>
   );
 
   const filteredOverviewLinks = useMemo(() => {
@@ -975,9 +1060,9 @@ export default function Portfolio() {
                     allowFullScreen
                   ></iframe>
                 ) : (
-                  <ProgressiveImage 
-                    src={getImageUrl(selectedProject.gallery[lightboxIndex].url)} 
-                    alt="High Resolution Portfolio Asset"
+                  <ProgressiveImage
+                    src={getImageUrl(selectedProject.gallery[lightboxIndex].url)}
+                    alt={selectedProject.gallery[lightboxIndex].caption || selectedProject.gallery[lightboxIndex].fileName || "Portfolio image"}
                     objectFit="contain"
                     containerClassName="w-full h-full max-h-full max-w-[90vw] md:max-w-[85vw] flex items-center justify-center drop-shadow-2xl pointer-events-none"
                     className={`max-w-full max-h-full pointer-events-auto ${lightboxZoom > 1 ? "cursor-zoom-out" : "cursor-zoom-in"}`}
@@ -1268,9 +1353,10 @@ export default function Portfolio() {
                       <div className="flex flex-wrap gap-[10px] justify-center md:justify-start items-start">
                         {/* File: About Me.rtf */}
                         {(searchQuery === "" || "about me.rtf".includes(searchQuery.toLowerCase())) && (
-                          <div 
+                          <button
+                            type="button"
                             onClick={() => setIsAboutMeOpen(true)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                           >
                             <div className={`transition-colors duration-500 ${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] flex flex-col justify-between p-3 relative mb-2`}>
                               <div className="h-2 bg-orange-500 rounded-sm w-full"></div>
@@ -1285,14 +1371,15 @@ export default function Portfolio() {
                               About Me.rtf
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>1.2 KB</span>
-                          </div>
+                          </button>
                         )}
 
                         {/* App: Memory */}
                         {(searchQuery === "" || "memory".includes(searchQuery.toLowerCase())) && (
-                          <div 
+                          <button
+                            type="button"
                             onClick={() => setIsMemoryGameOpen(true)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                           >
                             <div className={`w-[120px] h-[120px] bg-blue-300 dark:bg-blue-400 rounded-2xl shadow-sm flex items-center justify-center relative mb-2 border border-black/10`}>
                               <div className="grid grid-cols-2 gap-2 p-1">
@@ -1306,14 +1393,15 @@ export default function Portfolio() {
                               Memory
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Application</span>
-                          </div>
+                          </button>
                         )}
 
                         {/* App: Music */}
                         {(searchQuery === "" || "music".includes(searchQuery.toLowerCase()) || "apple music".includes(searchQuery.toLowerCase())) && (
-                          <div 
+                          <button
+                            type="button"
                             onClick={() => setIsMusicAppOpen(true)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                           >
                             <div className={`w-[120px] h-[120px] bg-gradient-to-b from-[#df5b69] to-[#b02c3a] rounded-2xl shadow-sm relative mb-2 border border-black/10 overflow-hidden`}>
                               <svg 
@@ -1337,14 +1425,15 @@ export default function Portfolio() {
                               Apple Music
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Application</span>
-                          </div>
+                          </button>
                         )}
 
                         {/* App: Contact Me */}
                         {(searchQuery === "" || "contact".includes(searchQuery.toLowerCase()) || "mail".includes(searchQuery.toLowerCase())) && (
-                          <div 
+                          <button
+                            type="button"
                             onClick={() => setIsContactAppOpen(true)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                           >
                             <div className={`w-[120px] h-[120px] bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl shadow-sm flex items-center justify-center relative mb-2 border border-black/10`}>
                               <div className="w-[60px] h-[40px] bg-white rounded-md shadow-sm border border-white/20 relative overflow-hidden">
@@ -1357,15 +1446,16 @@ export default function Portfolio() {
                               Contact Me
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Application</span>
-                          </div>
+                          </button>
                         )}
 
                         {/* Dynamic web links */}
                         {filteredOverviewLinks.map((link) => (
-                          <div 
+                          <button
+                            type="button"
                             key={link.id}
                             onClick={() => handleLinkOpen(link.url)}
-                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px]`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                           >
                             <div className={`transition-colors duration-500 w-[120px] h-[120px] ${isDark ? "bg-zinc-800/40 border border-white/5" : "bg-slate-100/70 border border-black/5"} rounded-2xl shadow-sm flex items-center justify-center relative mb-2`}>
                               {getLargeLinkIcon(link.iconName, "w-[32px] h-[32px]")}
@@ -1374,7 +1464,7 @@ export default function Portfolio() {
                               {link.name.split(" ")[0]}.webloc
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Web URL</span>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </div>

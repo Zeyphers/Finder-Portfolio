@@ -102,3 +102,36 @@ html, body {
   background-color: #2a2a2c !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
 }
+
+/* Slow brightness pulse for image placeholders while the full image downloads. */
+@keyframes img-loading-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-img-loading {
+  animation: img-loading-pulse 2.4s ease-in-out infinite;
+}
+
+/* Minimal Quill content styles for admin-authored rich text (process write-ups).
+   Replaces importing all of quill.snow.css in the visitor bundle — the editor
+   (ProcessEditorModal, lazy-loaded with the admin panel) still imports the full
+   stylesheet. Covers the formats the editor toolbar enables: indent, alignment
+   (via blot-formatter), and video embeds. */
+.ql-align-center { text-align: center; }
+.ql-align-right { text-align: right; }
+.ql-align-justify { text-align: justify; }
+.ql-indent-1 { padding-left: 3em; }
+.ql-indent-2 { padding-left: 6em; }
+.ql-indent-3 { padding-left: 9em; }
+.ql-indent-4 { padding-left: 12em; }
+.ql-indent-5 { padding-left: 15em; }
+.ql-indent-6 { padding-left: 18em; }
+.ql-indent-7 { padding-left: 21em; }
+.ql-indent-8 { padding-left: 24em; }
+iframe.ql-video {
+  display: block;
+  max-width: 100%;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}

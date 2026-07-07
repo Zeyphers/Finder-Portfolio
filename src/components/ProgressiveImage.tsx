@@ -44,6 +44,10 @@ export const computeAvgColor = (imgEl: HTMLImageElement, key: string): string | 
 interface ProgressiveImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   containerClassName?: string;
   objectFit?: "cover" | "contain";
+  // If loading `src` fails (e.g. an Image-CDN thumbnail the transformer can't
+  // handle), retry with this URL instead — keeps existing data rendering exactly
+  // as it did before thumbnails were introduced.
+  fallbackSrc?: string;
 }
 
 export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
@@ -52,9 +56,12 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
   className,
   containerClassName,
   objectFit = "cover",
+  fallbackSrc,
   ...props
 }) => {
-  const [loaded, setLoaded] = useState(false);
+  // The URL that actually finished loading (src, or fallbackSrc after a failure).
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const loaded = loadedSrc !== null;
   const [avg, setAvg] = useState<string | undefined>(() => (src ? imageAvgColors[src] : undefined));
 
   // Load the image OFF-SCREEN and only reveal the visible <img> once it is fully
@@ -63,38 +70,52 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
   // then it appears in one frame. (We don't trust a "seen this session" flag because the
   // browser can evict large images, which would re-download and paint progressively.)
   useEffect(() => {
-    if (!src) { setLoaded(false); return; }
-    setLoaded(false);
+    if (!src) { setLoadedSrc(null); return; }
+    setLoadedSrc(null);
     if (imageAvgColors[src]) setAvg(imageAvgColors[src]);
 
     let cancelled = false;
-    const finish = (el: HTMLImageElement) => {
-      if (cancelled) return;
-      loadedImagesCache.add(src);
-      const c = computeAvgColor(el, src);
-      if (c) setAvg(c);
-      setLoaded(true);
+
+    const attempt = (url: string, isLastResort: boolean) => {
+      const finish = (el: HTMLImageElement) => {
+        if (cancelled) return;
+        loadedImagesCache.add(url);
+        const c = computeAvgColor(el, url);
+        if (c) setAvg(c);
+        setLoadedSrc(url);
+      };
+      const fail = () => {
+        if (cancelled) return;
+        if (!isLastResort && fallbackSrc && fallbackSrc !== url) {
+          attempt(fallbackSrc, true);
+        } else {
+          // Give up and mount the <img> anyway so its native error state shows.
+          setLoadedSrc(url);
+        }
+      };
+
+      const loader = new Image();
+      loader.src = url;
+      if (typeof loader.decode === "function") {
+        loader.decode()
+          .then(() => finish(loader))
+          .catch(() => {
+            // decode() can reject on some sources; fall back to load events
+            if (loader.complete && loader.naturalWidth) finish(loader);
+            else {
+              loader.onload = () => finish(loader);
+              loader.onerror = fail;
+            }
+          });
+      } else {
+        loader.onload = () => finish(loader);
+        loader.onerror = fail;
+      }
     };
 
-    const loader = new Image();
-    loader.src = src;
-    if (typeof loader.decode === "function") {
-      loader.decode()
-        .then(() => finish(loader))
-        .catch(() => {
-          // decode() can reject on some sources; fall back to load events
-          if (loader.complete && loader.naturalWidth) finish(loader);
-          else {
-            loader.onload = () => finish(loader);
-            loader.onerror = () => { if (!cancelled) setLoaded(true); };
-          }
-        });
-    } else {
-      loader.onload = () => finish(loader);
-      loader.onerror = () => { if (!cancelled) setLoaded(true); };
-    }
+    attempt(src, !fallbackSrc);
     return () => { cancelled = true; };
-  }, [src]);
+  }, [src, fallbackSrc]);
 
   const fitClass = objectFit === "contain" ? "object-contain" : "object-cover";
   // Don't paint a solid colour box behind transparent "contain" icons.
@@ -102,18 +123,20 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
 
   return (
     <div className={`relative overflow-hidden ${containerClassName || className || ""}`}>
-      {/* Average-colour placeholder, shown until the full image is ready */}
+      {/* Average-colour placeholder, shown until the full image is ready. The slow
+          brightness pulse signals "still loading" so an unresponsive tile doesn't
+          read as broken. */}
       {!loaded && (
         <div
-          className={`absolute inset-0 rounded-[inherit] ${avg && showColor ? "" : (showColor ? "bg-slate-300/40 dark:bg-slate-600/40" : "")}`}
+          className={`absolute inset-0 rounded-[inherit] ${showColor ? "animate-img-loading" : ""} ${avg && showColor ? "" : (showColor ? "bg-slate-300/40 dark:bg-slate-600/40" : "")}`}
           style={avg && showColor ? { backgroundColor: avg } : undefined}
         />
       )}
 
       {/* Full image: only mounted once fully decoded, so it swaps in a single frame */}
-      {loaded && src && (
+      {loaded && loadedSrc && (
         <img
-          src={src}
+          src={loadedSrc}
           alt={alt}
           decoding="sync"
           className={`${className || ""} relative z-10 ${fitClass}`}

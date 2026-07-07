@@ -5,6 +5,15 @@
 [functions]
   node_bundler = "esbuild"
 
+# Security headers for all pages (notably: stops other sites from framing the
+# admin panel for clickjacking).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
