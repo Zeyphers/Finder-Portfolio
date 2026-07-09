@@ -30,15 +30,6 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
     onCompleteRef.current();
   }, []);
 
-  // Escape skips the boot entirely.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") finish();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [finish]);
-
   // Preload the custom logo and reveal the bar once it's ready. A safety timeout
   // ensures a slow or broken logo URL never blocks the boot sequence.
   useEffect(() => {
@@ -177,11 +168,6 @@ export default function BootAnimation({ config, onComplete }: BootAnimationProps
             style={{ width: `${progress}%` }}
           />
         </div>
-      </div>
-
-      {/* Skip hint (keyboard only — taps are reserved for unmuting) */}
-      <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 text-sm text-gray-600 transition-opacity duration-300 ${logoReady ? 'opacity-100' : 'opacity-0'}`}>
-        Press Esc to skip
       </div>
     </div>
   );
