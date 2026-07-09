@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, Share, User, Settings, LayoutList, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, User, Settings, LayoutList, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getImageUrl } from "./api";
 import { exportSiteZip, importSiteZip } from "./backupZip";
@@ -738,14 +738,7 @@ if __name__ == "__main__":
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <button onClick={() => {
-            navigator.clipboard.writeText(window.location.href);
-            alert("Admin Dashboard URL copied to clipboard!");
-          }} className="text-slate-600 hover:bg-slate-100 px-3 py-2 rounded-md text-sm font-medium transition flex items-center space-x-2 border border-slate-200 bg-white shadow-sm">
-            <Share className="w-4 h-4" />
-            <span>Share Dashboard</span>
-          </button>
-          <button 
+          <button
             onClick={handleSave} 
             disabled={saving} 
             className={`${

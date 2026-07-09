@@ -195,7 +195,15 @@ export default function Portfolio() {
     window.location.hostname.endsWith(".run.app")
   );
   
-  const [bootCompleted, setBootCompleted] = useState(false);
+  // Play the boot animation only on a visitor's first visit; once seen, we
+  // remember it in localStorage so return visits skip straight to the desktop.
+  const [bootCompleted, setBootCompleted] = useState(() => {
+    try {
+      return localStorage.getItem("boot_seen") === "true";
+    } catch {
+      return false;
+    }
+  });
   
   const PROJECTS = React.useMemo(() => {
     if (isProd) return RAW_PROJECTS.filter(p => p.id !== "test-folder");
@@ -1525,7 +1533,7 @@ export default function Portfolio() {
                       <div>
                         {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && selectedProject.description.trim() !== "<p><br></p>" && (
                           <div
-                            className={`mb-6 mt-2 px-2 w-full text-sm sm:text-[15px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
+                            className={`mb-6 mt-2 px-2 w-full text-base sm:text-[17px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
                             dangerouslySetInnerHTML={{ __html: selectedProject.description }}
                           />
                         )}
@@ -1647,8 +1655,15 @@ export default function Portfolio() {
         >
           {isDataLoaded ? (
             <BootAnimation 
-              config={about.bootConfig!} 
-              onComplete={() => setBootCompleted(true)} 
+              config={about.bootConfig!}
+              onComplete={() => {
+                setBootCompleted(true);
+                try {
+                  localStorage.setItem("boot_seen", "true");
+                } catch {
+                  /* ignore storage errors (private mode, quota) */
+                }
+              }}
             />
           ) : (
             <div className="fixed inset-0 bg-black" />
