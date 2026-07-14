@@ -71,8 +71,11 @@ export default function Boids({ config }: BoidsProps) {
     const PERCEPTION = 95;    // neighbour radius for alignment/cohesion
     const ALIGN = 0.05;
     const COH = 0.0009;
-    // No separation force by design: the boids don't interact with (or avoid)
-    // each other — they pass straight through, kept together only by flocking.
+    // Gentle personal-space repulsion so the flock spreads out instead of
+    // collapsing to a point. It's soft enough that boids still overlap and pass
+    // through each other — there's no hard collision between them.
+    const SEP_DIST = 26;      // personal-space radius
+    const SEP = 0.28;         // repulsion strength (kept light on purpose)
     const EDGE = 46;          // soft turn-around margin at the screen edge
     const EDGE_FORCE = 0.5;
     const AVOID = 70;         // soft repulsion band around the window
@@ -105,7 +108,7 @@ export default function Boids({ config }: BoidsProps) {
       const rect = getWindowRect();
 
       for (const b of boids) {
-        let alignX = 0, alignY = 0, cohX = 0, cohY = 0;
+        let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
         let neighbours = 0;
 
         for (const o of boids) {
@@ -118,6 +121,11 @@ export default function Boids({ config }: BoidsProps) {
             cohX += o.x; cohY += o.y;
             neighbours++;
           }
+          if (d < SEP_DIST && d > 0) {
+            // Weight by closeness so the push fades with distance.
+            sepX += (dx / d) * (1 - d / SEP_DIST);
+            sepY += (dy / d) * (1 - d / SEP_DIST);
+          }
         }
 
         let ax = 0, ay = 0;
@@ -129,6 +137,8 @@ export default function Boids({ config }: BoidsProps) {
           ax += (cohX - b.x) * COH;
           ay += (cohY - b.y) * COH;
         }
+        ax += sepX * SEP;
+        ay += sepY * SEP;
 
         // Soft repulsion from the Finder window (steer around it before colliding).
         if (rect) {
