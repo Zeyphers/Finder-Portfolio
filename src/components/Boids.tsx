@@ -64,15 +64,15 @@ export default function Boids({ config }: BoidsProps) {
     window.addEventListener("resize", resize);
 
     // --- Tuning ---
-    const N = 16;
+    const N = 200;
     const SIZE = 30;          // sprite bounding size in px
     const MAX_SPEED = 2.7;
     const MIN_SPEED = 1.1;
     const PERCEPTION = 95;    // neighbour radius for alignment/cohesion
-    const SEP_DIST = 36;      // personal space radius
     const ALIGN = 0.05;
     const COH = 0.0009;
-    const SEP = 0.55;
+    // No separation force by design: the boids don't interact with (or avoid)
+    // each other — they pass straight through, kept together only by flocking.
     const EDGE = 46;          // soft turn-around margin at the screen edge
     const EDGE_FORCE = 0.5;
     const AVOID = 70;         // soft repulsion band around the window
@@ -105,7 +105,7 @@ export default function Boids({ config }: BoidsProps) {
       const rect = getWindowRect();
 
       for (const b of boids) {
-        let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
+        let alignX = 0, alignY = 0, cohX = 0, cohY = 0;
         let neighbours = 0;
 
         for (const o of boids) {
@@ -118,10 +118,6 @@ export default function Boids({ config }: BoidsProps) {
             cohX += o.x; cohY += o.y;
             neighbours++;
           }
-          if (d < SEP_DIST && d > 0) {
-            sepX += dx / d;
-            sepY += dy / d;
-          }
         }
 
         let ax = 0, ay = 0;
@@ -133,8 +129,6 @@ export default function Boids({ config }: BoidsProps) {
           ax += (cohX - b.x) * COH;
           ay += (cohY - b.y) * COH;
         }
-        ax += sepX * SEP;
-        ay += sepY * SEP;
 
         // Soft repulsion from the Finder window (steer around it before colliding).
         if (rect) {
