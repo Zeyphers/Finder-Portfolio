@@ -66,11 +66,14 @@ export default function Boids({ config }: BoidsProps) {
     // --- Tuning ---
     const N = 200;
     const SIZE = 30;          // sprite bounding size in px
-    const MAX_SPEED = 2.7;
-    const MIN_SPEED = 1.1;
-    const PERCEPTION = 95;    // neighbour radius for alignment/cohesion
+    const MAX_SPEED = 5.6;
+    const MIN_SPEED = 3.0;
+    const WANDER = 0.9;       // random jitter per frame for erratic, darting motion
+    // Small perception radius so each boid only flocks with nearby ones — this
+    // fragments the swarm into many small local groups instead of one big flock.
+    const PERCEPTION = 58;    // neighbour radius for alignment/cohesion
     const ALIGN = 0.05;
-    const COH = 0.0009;
+    const COH = 0.0016;       // a touch stronger so each little group stays tight
     // Gentle personal-space repulsion so the flock spreads out instead of
     // collapsing to a point. It's soft enough that boids still overlap and pass
     // through each other — there's no hard collision between them.
@@ -139,6 +142,10 @@ export default function Boids({ config }: BoidsProps) {
         }
         ax += sepX * SEP;
         ay += sepY * SEP;
+
+        // Random wander so the flock darts around erratically instead of gliding.
+        ax += (Math.random() * 2 - 1) * WANDER;
+        ay += (Math.random() * 2 - 1) * WANDER;
 
         // Soft repulsion from the Finder window (steer around it before colliding).
         if (rect) {
