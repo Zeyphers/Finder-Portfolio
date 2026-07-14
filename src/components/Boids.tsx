@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { BootConfig } from "../types";
+import { getImageUrl } from "../api";
 
 interface BoidsProps {
   config: BootConfig;
@@ -36,14 +37,16 @@ export default function Boids({ config }: BoidsProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // The boid sprite is the boot logo. Custom logos may be cross-origin — we
-    // only ever *draw* (never read pixels back), so we skip crossOrigin to avoid
-    // breaking loads on hosts without CORS headers; a tainted canvas is fine here.
+    // The boid sprite IS the boot logo. Route the configured boot-logo URL
+    // through getImageUrl() — the same pipeline the rest of the app uses — so a
+    // custom logo loads identically (and reliably onto the canvas) instead of
+    // hotlinking the raw URL. With no custom logo we fall back to the built-in
+    // Apple mark, matching the boot animation.
     const customLogo = !!config.appleLogoUrl;
     const img = new Image();
     let imgReady = false;
     img.onload = () => { imgReady = true; };
-    img.src = config.appleLogoUrl || appleLogoDataUrl(!!config.invertAppleLogo);
+    img.src = getImageUrl(config.appleLogoUrl || appleLogoDataUrl(!!config.invertAppleLogo));
     // Built-in logo bakes the inversion into the SVG fill; a custom logo is
     // inverted at draw time with a canvas filter (matching the boot animation).
     const invertCustom = customLogo && !!config.invertAppleLogo;
