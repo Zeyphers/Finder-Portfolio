@@ -37,21 +37,43 @@ export default function Boids({ config }: BoidsProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
     // The boid sprite IS the boot logo. Route the configured boot-logo URL
     // through getImageUrl() — the same pipeline the rest of the app uses — so a
     // custom logo loads identically (and reliably onto the canvas) instead of
     // hotlinking the raw URL. With no custom logo we fall back to the built-in
     // Apple mark, matching the boot animation.
     const customLogo = !!config.appleLogoUrl;
-    const img = new Image();
-    let imgReady = false;
-    img.onload = () => { imgReady = true; };
-    img.src = getImageUrl(config.appleLogoUrl || appleLogoDataUrl(!!config.invertAppleLogo));
     // Built-in logo bakes the inversion into the SVG fill; a custom logo is
-    // inverted at draw time with a canvas filter (matching the boot animation).
+    // inverted when we bake the sprite (matching the boot animation).
     const invertCustom = customLogo && !!config.invertAppleLogo;
 
-    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    // Rasterize the logo ONCE into a small offscreen canvas, then blit that
+    // bitmap each frame. Drawing the source <img> directly 200×/frame would
+    // re-rasterize it every call (brutal for an SVG, and costly for a large
+    // raster) and pegs the main thread — blitting a pre-sized canvas is cheap.
+    const SIZE = 30;          // sprite bounding size in CSS px
+    const sprite = document.createElement("canvas");
+    let spriteReady = false;
+    let spriteW = SIZE, spriteH = SIZE;
+    const img = new Image();
+    img.onload = () => {
+      const ar = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 384 / 512;
+      spriteW = SIZE; spriteH = SIZE;
+      if (ar >= 1) spriteH = SIZE / ar; else spriteW = SIZE * ar;
+      // Render at device resolution so the little logo stays crisp.
+      sprite.width = Math.max(1, Math.round(spriteW * DPR));
+      sprite.height = Math.max(1, Math.round(spriteH * DPR));
+      const sctx = sprite.getContext("2d");
+      if (sctx) {
+        if (invertCustom) sctx.filter = "invert(1)";
+        sctx.drawImage(img, 0, 0, sprite.width, sprite.height);
+      }
+      spriteReady = true;
+    };
+    img.src = getImageUrl(config.appleLogoUrl || appleLogoDataUrl(!!config.invertAppleLogo));
+
     let W = 0;
     let H = 0;
     const resize = () => {
@@ -68,7 +90,6 @@ export default function Boids({ config }: BoidsProps) {
 
     // --- Tuning ---
     const N = 200;
-    const SIZE = 30;          // sprite bounding size in px
     const MAX_SPEED = 5.6;
     const MIN_SPEED = 3.0;
     const WANDER = 0.9;       // random jitter per frame for erratic, darting motion
@@ -203,17 +224,12 @@ export default function Boids({ config }: BoidsProps) {
         else if (b.y > H) { b.y = H; b.vy = -Math.abs(b.vy); }
       }
 
-      // --- Draw ---
+      // --- Draw --- blit the pre-rasterized sprite (cheap) at each boid.
       ctx.clearRect(0, 0, W, H);
-      const ar = imgReady && img.naturalWidth && img.naturalHeight
-        ? img.naturalWidth / img.naturalHeight
-        : 384 / 512;
-      let dw = SIZE, dh = SIZE;
-      if (ar >= 1) dh = SIZE / ar; else dw = SIZE * ar;
-      ctx.filter = invertCustom ? "invert(1)" : "none";
+      const hw = spriteW / 2, hh = spriteH / 2;
       for (const b of boids) {
-        if (imgReady) {
-          ctx.drawImage(img, b.x - dw / 2, b.y - dh / 2, dw, dh);
+        if (spriteReady) {
+          ctx.drawImage(sprite, b.x - hw, b.y - hh, spriteW, spriteH);
         } else {
           ctx.beginPath();
           ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
@@ -221,7 +237,6 @@ export default function Boids({ config }: BoidsProps) {
           ctx.fill();
         }
       }
-      ctx.filter = "none";
 
       raf = requestAnimationFrame(frame);
     };
