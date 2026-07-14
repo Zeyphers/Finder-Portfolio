@@ -9,6 +9,8 @@ const TextEditModal = lazy(() => import("./components/TextEditModal").then(m => 
 const MemoryGameApp = lazy(() => import("./components/MemoryGameApp").then(m => ({ default: m.MemoryGameApp })));
 const MusicApp = lazy(() => import("./components/MusicApp").then(m => ({ default: m.MusicApp })));
 const ContactApp = lazy(() => import("./components/ContactApp").then(m => ({ default: m.ContactApp })));
+// The Konami-code flock of boot logos. Loaded on demand only once triggered.
+const Boids = lazy(() => import("./components/Boids"));
 // Import data context for global state
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
@@ -442,7 +444,31 @@ export default function Portfolio() {
   const [isMemoryGameOpen, setIsMemoryGameOpen] = useState<boolean>(false);
   const [isMusicAppOpen, setIsMusicAppOpen] = useState<boolean>(false);
   const [isContactAppOpen, setIsContactAppOpen] = useState<boolean>(false);
-  
+
+  // Konami-code easter egg: a flock of boot logos ("boids") that fly around the
+  // desktop outside the Finder window and bounce off it. Toggles on/off each time
+  // the full sequence is entered.
+  const [boidsActive, setBoidsActive] = useState<boolean>(false);
+  useEffect(() => {
+    const seq = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
+    let pos = 0;
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (key === seq[pos]) {
+        pos++;
+        if (pos === seq.length) {
+          pos = 0;
+          setBoidsActive(v => !v);
+        }
+      } else {
+        // Restart the match, allowing this key to be a fresh first step.
+        pos = key === seq[0] ? 1 : 0;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Lightbox controller state
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [lightboxZoom, setLightboxZoom] = useState<number>(1);
@@ -943,7 +969,15 @@ export default function Portfolio() {
   return (
     <>
     <div className={`h-screen ${styles.outerBg} p-0 sm:p-6 lg:p-8 flex items-center justify-center font-sans overflow-hidden antialiased select-none`}>
-      
+
+      {/* Konami-code flock: boot logos flying in the space outside the window.
+          Rendered first (behind the Finder window) and bounces off it. */}
+      {boidsActive && about?.bootConfig && (
+        <Suspense fallback={null}>
+          <Boids config={about.bootConfig} />
+        </Suspense>
+      )}
+
       {/* 5. Rich TextEdit Biographical / Profile viewer modal */}
       <AnimatePresence>
         {isAboutMeOpen && (
