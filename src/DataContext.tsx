@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Project, ExternalLink, AboutInfo, SidebarItem } from "./types";
 import { getApiUrl, getDataUrl } from "./api";
+import defaultData from "./data.json";
 
 export interface DataContextType {
   projects: Project[];
@@ -28,6 +29,11 @@ const fallbackAbout: AboutInfo = {
     audioUrl: "https://froods.ca/~dschaub/AppleSounds/Startup/StartupIntelT2Mac.wav",
   }
 };
+
+// The streaming data function (netlify/functions/data.ts) pipes the stored blob
+// through untouched, so unlike the buffered /api/data route it cannot backfill a
+// missing EXTERNAL_LINKS key. Backfill here so the links survive a blob that lost them.
+const fallbackLinks: ExternalLink[] = defaultData.EXTERNAL_LINKS as ExternalLink[];
 
 const safeGetItem = (key: string) => {
   try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -80,7 +86,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   });
   const [links, setLinks] = useState<ExternalLink[]>(() => {
     const cached = safeGetItem('cached_links');
-    return cached ? JSON.parse(cached) : [];
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return fallbackLinks;
   });
   const [about, setAbout] = useState<AboutInfo>(getInitialAbout);
   const [sidebar, setSidebar] = useState<SidebarItem[]>(() => {
@@ -100,7 +112,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         safeSetItem('cached_projects', JSON.stringify(d.PROJECTS || []));
         
         const rawLinks = (d.EXTERNAL_LINKS || []) as any[];
-        const cleanedLinks = rawLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
+        const sourceLinks = rawLinks.length > 0 ? rawLinks : fallbackLinks;
+        const cleanedLinks = sourceLinks.map(l => ({ ...l, name: cleanLinkName(l.name) }));
         setLinks(cleanedLinks);
         safeSetItem('cached_links', JSON.stringify(cleanedLinks));
         

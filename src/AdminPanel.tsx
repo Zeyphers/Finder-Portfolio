@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
 import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, User, Settings, LayoutList, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
-import { getApiUrl, getImageUrl } from "./api";
+import { getApiUrl, getDataUrl, getImageUrl } from "./api";
 import { exportSiteZip, importSiteZip } from "./backupZip";
+import { countProjectInlineImages, extractProjectInlineImages } from "./inlineImages";
 import { ProgressiveImage } from "./components/ProgressiveImage";
 import { ProcessEditorModal } from "./components/ProcessEditorModal";
 import { FormattedTextarea } from "./components/FormattedTextarea";
@@ -28,7 +29,7 @@ export function AdminPanel() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const { projects, about, sidebar, refreshData } = useAppletData();
+  const { projects, links, about, sidebar, refreshData } = useAppletData();
   const [localProjects, setLocalProjects] = useState<Project[]>(projects);
   const [localAbout, setLocalAbout] = useState<AboutInfo>(about);
   const [localSidebar, setLocalSidebar] = useState<any[]>(sidebar || []);
@@ -53,6 +54,8 @@ export function AdminPanel() {
   const [uploadingGifs, setUploadingGifs] = useState(false);
   // Progress message while a zip export/restore is running (null = idle).
   const [zipProgress, setZipProgress] = useState<string | null>(null);
+  // Progress message while a save is doing extra work, e.g. moving embedded images out.
+  const [saveStatus, setSaveStatus] = useState("");
 
   const fetchBackups = async () => {
     setLoadingBackups(true);
@@ -136,12 +139,33 @@ export function AdminPanel() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const currentRemoteDataRes = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
-      const currentRemoteData = await currentRemoteDataRes.json();
-      
-      const payloadObj = { 
-        PROJECTS: localProjects, 
-        EXTERNAL_LINKS: currentRemoteData.EXTERNAL_LINKS,
+      // Rich-text content pasted into the process editor arrives as base64 data
+      // URIs. Move any that are still embedded into the image store before saving,
+      // so the stored data stays small enough for the API to serve. This also
+      // migrates content written before the editor started uploading directly.
+      let projectsToSave = localProjects;
+      if (countProjectInlineImages(localProjects) > 0) {
+        const { projects: optimized, stats } = await extractProjectInlineImages(
+          localProjects,
+          uploadFileWithChunks,
+          setSaveStatus
+        );
+        projectsToSave = optimized;
+        setLocalProjects(optimized);
+        console.log(
+          `Moved ${stats.uploaded} embedded image(s) into the image store, ` +
+          `removing ${(stats.bytesSaved / 1048576).toFixed(2)} MB from the stored data.`
+        );
+      }
+      setSaveStatus("");
+
+      // Carry the links through from context rather than re-fetching /api/data here.
+      // That route 502s once the stored data passes Lambda's 6 MB buffered-response
+      // limit, which made EXTERNAL_LINKS undefined and silently dropped it from the
+      // payload — every save then permanently deleted the links from the blob.
+      const payloadObj = {
+        PROJECTS: projectsToSave,
+        EXTERNAL_LINKS: links,
         ABOUT: localAbout,
         SIDEBAR: localSidebar
       };
@@ -203,6 +227,7 @@ export function AdminPanel() {
       console.error("Save Exception:", err);
       alert(`Error saving data: ${err.message || String(err)}`);
     }
+    setSaveStatus("");
     setSaving(false);
   };
 
@@ -341,7 +366,9 @@ export function AdminPanel() {
   const handleExportZip = async () => {
     setZipProgress("Fetching live site data…");
     try {
-      const res = await fetch(getApiUrl("/api/data"), { cache: "no-store" });
+      // Read through getDataUrl() (the streaming function on Netlify) — the buffered
+      // /api/data route 502s once the stored data passes Lambda's 6 MB response limit.
+      const res = await fetch(getDataUrl(), { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to fetch site data (HTTP ${res.status})`);
       const data = await res.json();
 
@@ -738,9 +765,12 @@ if __name__ == "__main__":
           </div>
         </div>
         <div className="flex items-center space-x-3">
+          {saveStatus && (
+            <span className="text-sm text-slate-500 max-w-xs truncate" title={saveStatus}>{saveStatus}</span>
+          )}
           <button
-            onClick={handleSave} 
-            disabled={saving} 
+            onClick={handleSave}
+            disabled={saving}
             className={`${
               saveSuccess 
                 ? "bg-green-600 hover:bg-green-700 focus:ring-green-500" 
@@ -1708,6 +1738,7 @@ if __name__ == "__main__":
             setProcessEditorOpen(null);
           }}
           onClose={() => setProcessEditorOpen(null)}
+          uploadImage={uploadFileWithChunks}
         />
       )}
     </div>
