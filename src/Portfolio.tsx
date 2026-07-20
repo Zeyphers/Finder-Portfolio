@@ -15,6 +15,7 @@ const Boids = lazy(() => import("./components/Boids"));
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
 import { getImageUrl, getThumbUrl } from "./api";
+import { sanitizeRichText } from "./sanitizeHtml";
 import { useLocation, useNavigate } from "react-router-dom";
 import { buildPath, resolvePath } from "./urlSlug";
 import { motion, useDragControls, AnimatePresence } from "motion/react";
@@ -1158,7 +1159,7 @@ export default function Portfolio() {
                   spaces so prose wraps at word boundaries (long single tokens still break via CSS). */}
               <div
                 className="p-8 md:p-12 prose prose-invert prose-slate prose-lg max-w-none text-slate-300 whitespace-normal [overflow-wrap:break-word] [word-break:normal] [hyphens:none] [&_*]:max-w-full [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mx-auto"
-                dangerouslySetInnerHTML={{ __html: selectedProject.gallery[lightboxIndex].processInfoHtml!.replace(/&nbsp;|\u00A0/g, ' ') }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichText(selectedProject.gallery[lightboxIndex].processInfoHtml!.replace(/&nbsp;|\u00A0/g, ' ')) }}
               />
             </div>
           )}
@@ -1568,7 +1569,7 @@ export default function Portfolio() {
                         {selectedProject.description && selectedProject.description.trim() !== "" && selectedProject.description.trim() !== "Description" && selectedProject.description.trim() !== "<p><br></p>" && (
                           <div
                             className={`mb-6 mt-2 px-2 w-full text-base sm:text-[17px] leading-relaxed break-words whitespace-normal overflow-hidden [&_*]:break-words [&_*]:whitespace-normal [&_*]:max-w-full [&>p]:mb-3 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>blockquote]:border-l-4 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3 [&_strong]:font-bold [&_em]:italic [&_u]:underline ${styles.textSecondary}`}
-                            dangerouslySetInnerHTML={{ __html: selectedProject.description }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichText(selectedProject.description) }}
                           />
                         )}
 
@@ -1611,7 +1612,7 @@ export default function Portfolio() {
                         return bottom ? (
                           <div
                             className={`mt-auto pt-10 pb-2 px-4 w-full text-center text-sm sm:text-[15px] leading-relaxed ${styles.textMuted} [&_strong]:font-bold [&_em]:italic [&_u]:underline [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-2 [&>p]:mb-2 [&>ul]:list-disc [&>ul]:inline-block [&>ul]:text-left`}
-                            dangerouslySetInnerHTML={{ __html: bottom }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichText(bottom) }}
                           />
                         ) : null;
                       })()}

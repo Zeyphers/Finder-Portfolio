@@ -48,6 +48,10 @@ function isPrivateIp(ip: string): boolean {
     if (a === 169 && b === 254) return true; // link-local + cloud metadata
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT (100.64.0.0/10)
+    if (a === 192 && b === 0) return true; // 192.0.0.0/24 IETF protocol assignments
+    if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking (198.18.0.0/15)
+    if (a >= 224) return true; // multicast + reserved (224.0.0.0/3)
     return false;
   }
   const lower = ip.toLowerCase();
@@ -210,14 +214,16 @@ router.post("/contact", async (req, res) => {
   }
 });
 
-// Throttle failed logins per IP so credentials can't be brute-forced. In-memory,
-// so it's per warm Lambda instance — best-effort, but it still slows an attacker
-// hammering one instance to a crawl.
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+// Throttle failed logins per IP so credentials can't be brute-forced. Backed by
+// the same blob store the contact form uses: an in-memory Map only covers one
+// warm Lambda instance, so it resets on every cold start and isn't shared across
+// concurrent instances — an attacker spreading requests would sail straight past it.
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 10;
 
-router.post("/login", (req, res) => {
+const loginKey = (ip: string) => `login_${ip.replace(/[^a-zA-Z0-9]/g, "-")}`;
+
+router.post("/login", async (req, res) => {
   const { username, password } = req.body;
   const validUser = process.env.ADMIN_USERNAME;
   const validPass = process.env.ADMIN_PASSWORD;
@@ -229,20 +235,30 @@ router.post("/login", (req, res) => {
 
   const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").toString().split(",")[0].trim();
   const now = Date.now();
-  let attempts = loginAttempts.get(ip);
-  if (attempts && now > attempts.resetAt) attempts = undefined;
+  const throttleStore = getStore("ratelimits");
+  const key = loginKey(ip);
+
+  let attempts: { count: number; resetAt: number } | null = null;
+  try {
+    attempts = await throttleStore.get(key, { type: "json" });
+  } catch {
+    attempts = null;
+  }
+  if (attempts && now > attempts.resetAt) attempts = null;
   if (attempts && attempts.count >= LOGIN_MAX_FAILURES) {
     return res.status(429).json({ success: false, message: "Too many attempts. Try again later." });
   }
 
   if (safeEqual(username || "", validUser) && safeEqual(password || "", validPass)) {
-    loginAttempts.delete(ip);
+    await throttleStore.delete(key).catch(() => {});
     res.json({ success: true, token: signToken(username) });
   } else {
-    loginAttempts.set(ip, {
-      count: (attempts?.count || 0) + 1,
-      resetAt: attempts?.resetAt || now + LOGIN_WINDOW_MS,
-    });
+    await throttleStore
+      .setJSON(key, {
+        count: (attempts?.count || 0) + 1,
+        resetAt: attempts?.resetAt || now + LOGIN_WINDOW_MS,
+      })
+      .catch(() => {});
     res.status(401).json({ success: false, message: "Invalid credentials" });
   }
 });

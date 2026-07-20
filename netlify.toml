@@ -13,11 +13,81 @@
     X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()"
+    # The portfolio renders admin-authored rich text with dangerouslySetInnerHTML,
+    # so script-src is the control that matters: the bundle is a single external
+    # module and there are no inline <script> tags, which lets us drop 'unsafe-inline'
+    # entirely for scripts. Styles still need it — Quill and motion/react inject
+    # style rules at runtime — but inline CSS is a far smaller problem than inline JS.
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' https:; connect-src 'self'; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
 
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
+
+# Bot noise. Scanners hammer WordPress and dotfile paths (/wp-login.php alone was
+# ~165 hits in a week); without these they fall through to the SPA catch-all below
+# and get a 200, which both encourages retries and burns bandwidth. None of these
+# can collide with a real route — the site has no PHP and no dotfile URLs.
+#
+# Netlify only matches literal paths and a trailing /* splat — there is no glob,
+# so "/*.php" would match nothing. Hence the explicit list.
+[[redirects]]
+  from = "/wp-login.php"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/xmlrpc.php"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/wp-plain.php"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/wp-sitemap.xml"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/wp-admin/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/wp-content/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/wp-includes/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/.env"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/.git/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/ALFA_DATA/*"
+  to = "/404.html"
+  status = 404
+
+[[redirects]]
+  from = "/alfacgiapi/*"
+  to = "/404.html"
+  status = 404
 
 [[redirects]]
   from = "/*"

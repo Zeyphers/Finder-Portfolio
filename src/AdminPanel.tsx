@@ -22,8 +22,32 @@ const safeRemoveItem = (key: string) => {
   try { localStorage.removeItem(key); } catch (e) {}
 };
 
+// Tokens look like `${base64url(payload)}.${sig}` and the payload carries an exp
+// claim. Only the server can check the signature, but an expired token is
+// definitively dead — so drop it up front rather than presenting a logged-in
+// panel whose every write silently 401s.
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(
+      atob(token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/"))
+    );
+    return typeof payload.exp !== "number" || Date.now() > payload.exp;
+  } catch {
+    return true;
+  }
+};
+
+const readStoredToken = (): string => {
+  const token = safeGetItem("adminToken") || "";
+  if (!token || isTokenExpired(token)) {
+    safeRemoveItem("adminToken");
+    return "";
+  }
+  return token;
+};
+
 export function AdminPanel() {
-  const [token, setToken] = useState(safeGetItem("adminToken") || "");
+  const [token, setToken] = useState(readStoredToken);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -225,7 +249,16 @@ export function AdminPanel() {
       }, 3000);
     } catch (err: any) {
       console.error("Save Exception:", err);
-      alert(`Error saving data: ${err.message || String(err)}`);
+      const message = err?.message || String(err);
+      if (/unauthorized|401/i.test(message)) {
+        // The 7-day token lapsed mid-session. Say so plainly — "Unauthorized"
+        // gives no hint that logging back in is the fix.
+        safeRemoveItem("adminToken");
+        setToken("");
+        alert("Your session expired. Nothing was saved — please log in again and retry.");
+      } else {
+        alert(`Error saving data: ${message}`);
+      }
     }
     setSaveStatus("");
     setSaving(false);

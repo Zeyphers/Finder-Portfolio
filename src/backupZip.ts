@@ -6,6 +6,7 @@
 // and a restore never touches the live database — it only fills the admin
 // panel's editor state, which the user persists with "Save Changes".
 import JSZip from "jszip";
+import { sanitizeProjectsHtml } from "./sanitizeHtml";
 import { getImageUrl } from "./api";
 
 export interface SiteData {
@@ -166,6 +167,10 @@ export async function importSiteZip(
   if (!Array.isArray(data.PROJECTS) || !data.ABOUT) {
     throw new Error("Invalid backup: data.json is missing PROJECTS/ABOUT.");
   }
+  // A zip is untrusted input — it can come from anywhere, and the checks above
+  // only prove the shape is right, not that the rich text is safe. Strip script
+  // and friends before any of it reaches the site.
+  data.PROJECTS = sanitizeProjectsHtml(data.PROJECTS);
 
   const manifestEntry = zip.file("manifest.json");
   const manifest: Manifest | null = manifestEntry ? JSON.parse(await manifestEntry.async("string")) : null;
