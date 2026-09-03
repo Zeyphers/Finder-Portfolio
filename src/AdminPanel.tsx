@@ -22,6 +22,8 @@ const safeRemoveItem = (key: string) => {
   try { localStorage.removeItem(key); } catch (e) {}
 };
 
+const EXPANDED_FOLDERS_KEY = "admin-expanded-folders-v2";
+
 // Tokens look like `${base64url(payload)}.${sig}` and the payload carries an exp
 // claim. Only the server can check the signature, but an expired token is
 // definitively dead — so drop it up front rather than presenting a logged-in
@@ -72,9 +74,14 @@ export function AdminPanel() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [dragActiveProjectId, setDragActiveProjectId] = useState<string | null>(null);
   const [processEditorOpen, setProcessEditorOpen] = useState<{ projectId: string; imageIndex: number } | null>(null);
+  // Folders start closed, so the list reads as a scannable index you open one
+  // card at a time. The storage key is versioned because the old map recorded
+  // exceptions to a default-*open* list — replaying it here would spring folders
+  // open that the reader never asked for.
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
     try {
-      const stored = safeGetItem("admin-expanded-folders");
+      safeRemoveItem("admin-expanded-folders");
+      const stored = safeGetItem(EXPANDED_FOLDERS_KEY);
       if (stored) return JSON.parse(stored);
     } catch (e) {
       console.error("Failed to parse expanded folders", e);
@@ -113,12 +120,20 @@ export function AdminPanel() {
     }
   }, [token, activeTab]);
 
+  const persistExpanded = (next: Record<string, boolean>) => {
+    safeSetItem(EXPANDED_FOLDERS_KEY, JSON.stringify(next));
+    return next;
+  };
+
   const toggleFolder = (folderId: string) => {
-    setExpandedFolders(prev => {
-      const next = { ...prev, [folderId]: !prev[folderId] };
-      safeSetItem("admin-expanded-folders", JSON.stringify(next));
-      return next;
-    });
+    setExpandedFolders(prev => persistExpanded({ ...prev, [folderId]: !prev[folderId] }));
+  };
+
+  // For the two cases where a card would otherwise be created or moved somewhere
+  // the reader can't see: a brand new folder, and a folder reparented into a
+  // closed one.
+  const expandFolder = (folderId: string) => {
+    setExpandedFolders(prev => (prev[folderId] ? prev : persistExpanded({ ...prev, [folderId]: true })));
   };
 
   useEffect(() => {
@@ -355,6 +370,7 @@ export function AdminPanel() {
 
   const addFolder = () => {
     const newId = `project-${Date.now()}`;
+    expandFolder(newId); // a folder you just made should be open to edit
     setLocalProjects([...localProjects, {
       id: newId,
       name: "New Folder",
@@ -401,19 +417,45 @@ export function AdminPanel() {
     return result;
   };
 
-  // Depth-first ordering so each subfolder is listed right under its parent, with a depth
-  // used to indent + tint the card so the hierarchy is visible while editing.
-  const getOrderedProjects = (): { project: Project; depth: number }[] => {
-    const out: { project: Project; depth: number }[] = [];
+  // Depth-first ordering so each subfolder is listed right under its parent, with a
+  // depth used to indent + tint the card. A closed folder is not descended into, so
+  // collapsing one takes its whole subtree with it instead of leaving orphaned
+  // children stranded at the same indent.
+  const getOrderedProjects = (): { project: Project; depth: number; childCount: number }[] => {
+    const out: { project: Project; depth: number; childCount: number }[] = [];
+    const childCountOf = (id: string) => localProjects.filter(c => c.parentId === id).length;
+    const placed = new Set<string>(); // rendered
+    const tucked = new Set<string>(); // deliberately folded away inside a closed parent
+
+    const tuckAway = (id: string) => {
+      localProjects.forEach(c => {
+        if (c.parentId === id && !tucked.has(c.id)) {
+          tucked.add(c.id);
+          tuckAway(c.id);
+        }
+      });
+    };
+
     const visit = (parentId: string | undefined, depth: number) => {
       localProjects
-        .filter(p => (p.parentId || "") === (parentId || ""))
-        .forEach(p => { out.push({ project: p, depth }); visit(p.id, depth + 1); });
+        .filter(p => (p.parentId || "") === (parentId || "") && !placed.has(p.id) && !tucked.has(p.id))
+        .forEach(p => {
+          placed.add(p.id);
+          out.push({ project: p, depth, childCount: childCountOf(p.id) });
+          if (expandedFolders[p.id]) visit(p.id, depth + 1);
+          else tuckAway(p.id);
+        });
     };
     visit(undefined, 0);
-    // Safety net: surface any orphan (parent missing) at top level so nothing vanishes.
-    const seen = new Set(out.map(o => o.project.id));
-    localProjects.forEach(p => { if (!seen.has(p.id)) out.push({ project: p, depth: 0 }); });
+
+    // Safety net: anything neither rendered nor deliberately tucked away can't be
+    // reached from the top level — a parentId naming a folder that no longer
+    // exists, or a parent/child loop. Surface it rather than let a card vanish.
+    localProjects.forEach(p => {
+      if (!placed.has(p.id) && !tucked.has(p.id)) {
+        out.push({ project: p, depth: 0, childCount: childCountOf(p.id) });
+      }
+    });
     return out;
   };
 
@@ -1045,7 +1087,7 @@ if __name__ == "__main__":
             </div>
 
             <div className="space-y-8 pb-20">
-              {getOrderedProjects().map(({ project, depth }) => (
+              {getOrderedProjects().map(({ project, depth, childCount }) => (
             <div
               key={project.id}
               style={{ marginLeft: depth * 28 }}
@@ -1062,8 +1104,15 @@ if __name__ == "__main__":
                   {depth > 0 && <span className="text-[11px] uppercase tracking-wide text-sky-500 font-semibold">subfolder</span>}
                 </div>
                 <div className="flex items-center space-x-4">
-                  <span className="text-slate-400 text-xs font-medium">{project.gallery?.length || 0} items</span>
-                  {expandedFolders[project.id] !== false ? (
+                  {/* Subfolders are hidden while this card is closed, so say how many
+                      are in there — otherwise a closed folder gives no hint it has any. */}
+                  {childCount > 0 && (
+                    <span className="text-sky-500 text-xs font-medium whitespace-nowrap">
+                      {childCount} {childCount === 1 ? "subfolder" : "subfolders"}
+                    </span>
+                  )}
+                  <span className="text-slate-400 text-xs font-medium whitespace-nowrap">{project.gallery?.length || 0} items</span>
+                  {expandedFolders[project.id] ? (
                     <ChevronUp className="w-5 h-5 text-slate-500" />
                   ) : (
                     <ChevronDown className="w-5 h-5 text-slate-500" />
@@ -1071,7 +1120,7 @@ if __name__ == "__main__":
                 </div>
               </div>
 
-              {expandedFolders[project.id] !== false && (
+              {expandedFolders[project.id] && (
                 <>
                   <div className="bg-slate-50 border-b border-slate-200 p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1 space-y-3 w-full">
@@ -1100,7 +1149,13 @@ if __name__ == "__main__":
                       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Parent Folder</label>
                       <select
                         value={project.parentId || ""}
-                        onChange={e => updateFolder(project.id, { parentId: e.target.value || undefined })}
+                        onChange={e => {
+                          const parentId = e.target.value || undefined;
+                          // Open the destination first, or the card would slide into a
+                          // closed folder and disappear out from under the cursor.
+                          if (parentId) expandFolder(parentId);
+                          updateFolder(project.id, { parentId });
+                        }}
                         className="w-full border-slate-300 rounded-md shadow-sm p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500 border focus:outline-none"
                       >
                         <option value="">None (top level)</option>
