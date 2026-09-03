@@ -51,6 +51,15 @@ export function AdminPanel() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  // The login card doubles as the password-reset flow: "login" -> "forgot", and
+  // inside "forgot", "request" (ask for a code) -> "verify" (code + new password).
+  const [authView, setAuthView] = useState<"login" | "forgot">("login");
+  const [resetStage, setResetStage] = useState<"request" | "verify">("request");
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
   const navigate = useNavigate();
 
   const { projects, links, about, sidebar, refreshData } = useAppletData();
@@ -133,6 +142,8 @@ export function AdminPanel() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setNotice("");
     try {
       const res = await fetch(getApiUrl("/api/login"), {
         method: "POST",
@@ -151,6 +162,84 @@ export function AdminPanel() {
     } catch (err: any) {
       console.error("Login exception: ", err);
       setError(`Login failed: ${err.message || String(err)}`);
+    }
+  };
+
+  // The login card doubles as the reset flow, so moving between them clears any
+  // stale banner and half-typed code from the previous step.
+  const showAuthView = (view: "login" | "forgot") => {
+    setAuthView(view);
+    setResetStage("request");
+    setResetCode("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setError("");
+    setNotice("");
+  };
+
+  // Step 1: ask the backend to email a one-time code. Only the username is sent —
+  // the destination address is fixed server-side (the same one the contact form
+  // delivers to), so there is nothing here a stranger could redirect.
+  const handleRequestResetCode = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setError("");
+    setNotice("");
+    setResetBusy(true);
+    try {
+      const res = await fetch(getApiUrl("/api/forgot-password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError(data.error || "Could not send a code. Try again in a minute.");
+      } else {
+        setResetStage("verify");
+        setNotice(data.simulated
+          ? "No email key is configured, so the code was printed to the server log instead."
+          : "Code sent. Check your email, then enter it below.");
+      }
+    } catch (err: any) {
+      console.error("Reset request exception: ", err);
+      setError(`Request failed: ${err.message || String(err)}`);
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
+  // Step 2: trade the code for a new password, then hand the user back to sign-in
+  // so the new credentials get exercised straight away.
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setNotice("");
+    if (newPassword !== confirmPassword) {
+      setError("The two passwords don't match.");
+      return;
+    }
+    setResetBusy(true);
+    try {
+      const res = await fetch(getApiUrl("/api/reset-password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: resetCode, newPassword })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError(data.error || "Reset failed.");
+      } else {
+        showAuthView("login");
+        setPassword("");
+        setNotice("Password updated, and any other signed-in device was signed out. Sign in with your new password.");
+      }
+    } catch (err: any) {
+      console.error("Reset exception: ", err);
+      setError(`Reset failed: ${err.message || String(err)}`);
+    } finally {
+      setResetBusy(false);
     }
   };
 
@@ -754,32 +843,99 @@ if __name__ == "__main__":
   }, []);
 
   if (!token) {
+    const inputClass = "w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none";
     return (
       <div className={`h-screen bg-slate-100 flex items-center justify-center p-4 font-sans text-slate-800 overflow-y-auto ${isDarkTheme ? "admin-dark" : ""}`}>
         <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-200 max-w-sm w-full">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Login</h1>
-            <p className="text-sm text-slate-500 mt-2">Sign in to manage your portfolio</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              {authView === "login" ? "Admin Login" : "Reset Password"}
+            </h1>
+            <p className="text-sm text-slate-500 mt-2">
+              {authView === "login"
+                ? "Sign in to manage your portfolio"
+                : "A confirmation code goes to the portfolio's contact address"}
+            </p>
             <p className="text-xs text-slate-400 mt-2 break-all bg-slate-50 p-1 rounded font-mono">Backend: {getApiUrl("/api/login")}</p>
           </div>
-          
+
           {error && <div className="mb-4 bg-red-50 text-red-600 text-sm p-3 rounded-md border border-red-200">{error}</div>}
-          
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Username</label>
-              <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" required />
-            </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition">
-              Sign In
-            </button>
-          </form>
+          {notice && <div className="mb-4 bg-blue-50 text-blue-700 text-sm p-3 rounded-md border border-blue-200">{notice}</div>}
+
+          {authView === "login" ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Username</label>
+                <input type="text" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" className={inputClass} required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" className={inputClass} required />
+              </div>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition">
+                Sign In
+              </button>
+            </form>
+          ) : resetStage === "request" ? (
+            <form onSubmit={handleRequestResetCode} className="space-y-4">
+              <p className="text-sm text-slate-600">
+                Name the admin account and we'll email it back to you with a six-digit code,
+                at the address the contact form delivers to. The code expires in 15 minutes.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Username</label>
+                <input type="text" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" className={inputClass} required />
+              </div>
+              <button
+                type="submit"
+                disabled={resetBusy}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-2 px-4 rounded transition"
+              >
+                {resetBusy ? "Sending..." : "Email me a code"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Confirmation code</label>
+                <input
+                  type="text"
+                  value={resetCode}
+                  onChange={e => setResetCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  className={`${inputClass} text-center font-mono text-lg tracking-[0.4em]`}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">New password</label>
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} minLength={8} autoComplete="new-password" className={inputClass} required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Confirm new password</label>
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} minLength={8} autoComplete="new-password" className={inputClass} required />
+              </div>
+              <button type="submit" disabled={resetBusy} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-2 px-4 rounded transition">
+                {resetBusy ? "Saving..." : "Set new password"}
+              </button>
+              <button type="button" onClick={() => handleRequestResetCode()} disabled={resetBusy} className="w-full text-sm text-slate-500 hover:text-slate-800 disabled:opacity-60">
+                Send a new code
+              </button>
+            </form>
+          )}
+
           <div className="mt-4 text-center">
-            <button onClick={() => navigate("/")} className="text-sm text-slate-500 hover:text-slate-800">Return to Portfolio</button>
+            {authView === "login" ? (
+              <>
+                <button onClick={() => showAuthView("forgot")} className="text-sm text-blue-600 hover:text-blue-800">Forgot password?</button>
+                <span className="text-slate-300 mx-2">|</span>
+                <button onClick={() => navigate("/")} className="text-sm text-slate-500 hover:text-slate-800">Return to Portfolio</button>
+              </>
+            ) : (
+              <button onClick={() => showAuthView("login")} className="text-sm text-slate-500 hover:text-slate-800">Back to sign in</button>
+            )}
           </div>
         </div>
       </div>

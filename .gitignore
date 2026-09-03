@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 .claude/
+
+# Admin password override written by the reset flow (Express/dev only)
+.admin-auth.json

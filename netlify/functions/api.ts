@@ -10,18 +10,24 @@ import dns from "dns";
 import net from "net";
 
 // --- Auth: stateless HMAC-signed tokens (no static/guessable token) ---
+// The `v` claim is the credential version: the timestamp of the last password
+// reset, or 0 while the password is still whatever ADMIN_PASSWORD says. Verifying
+// against the current version is what makes a reset strand tokens minted before
+// it, so "reset my password" really does sign other devices out. Tokens issued
+// before this claim existed carry no `v` and read as 0, so an installation that
+// has never been reset doesn't log anyone out just for deploying this.
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-function signToken(username: string): string {
+function signToken(username: string, credVersion: number): string {
   const secret = process.env.AUTH_SECRET || "";
   const payload = Buffer.from(
-    JSON.stringify({ u: username, exp: Date.now() + TOKEN_TTL_MS })
+    JSON.stringify({ u: username, v: credVersion, exp: Date.now() + TOKEN_TTL_MS })
   ).toString("base64url");
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
   return `${payload}.${sig}`;
 }
 
-function verifyToken(token: string): boolean {
+function verifyToken(token: string, credVersion: number): boolean {
   const secret = process.env.AUTH_SECRET || "";
   if (!secret) return false;
   const parts = token.split(".");
@@ -33,6 +39,7 @@ function verifyToken(token: string): boolean {
   if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return false;
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if ((typeof data.v === "number" ? data.v : 0) !== credVersion) return false;
     return typeof data.exp === "number" && Date.now() <= data.exp;
   } catch {
     return false;
@@ -115,6 +122,103 @@ function safeEqual(a: string, b: string): boolean {
   const ha = crypto.createHash("sha256").update(String(a)).digest();
   const hb = crypto.createHash("sha256").update(String(b)).digest();
   return crypto.timingSafeEqual(ha, hb);
+}
+
+// --- Admin password reset (emailed one-time code) ---
+// ADMIN_PASSWORD is an environment variable and can't be rewritten at runtime, so
+// a reset stores a scrypt-hashed *override* alongside the site's other persisted
+// state. Login prefers that override when one exists and falls back to the env
+// var otherwise, so a fresh deploy still works before any reset has happened.
+const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+const RESET_MAX_ATTEMPTS = 5;
+const RESET_MIN_INTERVAL_MS = 60 * 1000; // at most one code a minute...
+const RESET_MAX_PER_HOUR = 5;            // ...and never a mailbox flood
+const RESET_HOUR_MS = 60 * 60 * 1000;
+const MIN_PASSWORD_LENGTH = 8;
+
+interface StoredSecret { hash: string; salt: string; updatedAt: number }
+interface AdminAuthState {
+  password?: StoredSecret;
+  reset?: { code: StoredSecret; expiresAt: number; attempts: number };
+  requests?: number[]; // epoch ms of codes emailed in the last hour
+}
+
+function hashSecret(value: string, salt: string): string {
+  return crypto.scryptSync(String(value), salt, 64).toString("hex");
+}
+
+function makeSecret(value: string): StoredSecret {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return { hash: hashSecret(value, salt), salt, updatedAt: Date.now() };
+}
+
+function secretMatches(secret: StoredSecret | undefined, value: string): boolean {
+  if (!secret || !secret.hash || !secret.salt) return false;
+  const candidate = Buffer.from(hashSecret(value, secret.salt), "hex");
+  const known = Buffer.from(secret.hash, "hex");
+  if (candidate.length !== known.length) return false;
+  return crypto.timingSafeEqual(candidate, known);
+}
+
+// Six digits from a CSPRNG — Math.random() is guessable enough to matter here.
+function generateResetCode(): string {
+  return crypto.randomInt(0, 1000000).toString().padStart(6, "0");
+}
+
+// The code only ever goes to the hard-coded owner address the contact form uses,
+// never to one supplied by the request, so there is no recipient to aim.
+function resetCodeEmailHtml(username: string, code: string): string {
+  return `
+    <div style="font-family: sans-serif;">
+      <h2>Portfolio admin password reset</h2>
+      <p>Someone asked to reset the password for the portfolio admin panel.</p>
+      <p><strong>Username:</strong> ${escapeHtml(username)}</p>
+      <p><strong>Confirmation code:</strong></p>
+      <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; font-family: monospace;">${escapeHtml(code)}</p>
+      <p>It expires in 15 minutes and works once.</p>
+      <hr />
+      <p style="color: #888; font-size: 12px;">If this wasn't you, ignore this email — the password has not changed.</p>
+    </div>
+  `;
+}
+
+// Trims the request log to the last hour and reports whether another code may go
+// out. Throttling is global rather than per-IP on purpose: there is exactly one
+// admin mailbox, so spreading requests across IPs must not multiply the emails.
+function resetThrottle(requests: number[] | undefined, now: number): { recent: number[]; retryAfterMs: number } {
+  const recent = (requests || []).filter((t) => typeof t === "number" && now - t < RESET_HOUR_MS);
+  if (recent.length) {
+    const last = Math.max(...recent);
+    if (now - last < RESET_MIN_INTERVAL_MS) {
+      return { recent, retryAfterMs: RESET_MIN_INTERVAL_MS - (now - last) };
+    }
+    if (recent.length >= RESET_MAX_PER_HOUR) {
+      return { recent, retryAfterMs: RESET_HOUR_MS - (now - Math.min(...recent)) };
+    }
+  }
+  return { recent, retryAfterMs: 0 };
+}
+
+// The serverless twin persists to Netlify Blobs: a Lambda's filesystem is
+// ephemeral and per-instance, so an on-disk override would vanish on a cold
+// start and diverge between concurrent instances.
+const AUTH_BLOB_KEY = "admin.json";
+
+// A missing key resolves to null — the ordinary pre-reset state, meaning "no
+// override". A genuine store failure throws, and is deliberately left to throw:
+// reporting an empty state would quietly reinstate ADMIN_PASSWORD and revive
+// tokens a reset had just killed, so callers have to fail closed instead.
+async function readAdminAuth(): Promise<AdminAuthState> {
+  const state = (await getStore("auth").get(AUTH_BLOB_KEY, { type: "json" })) as AdminAuthState | null;
+  return state || {};
+}
+
+async function credentialVersion(): Promise<number> {
+  return (await readAdminAuth()).password?.updatedAt || 0;
+}
+
+async function writeAdminAuth(state: AdminAuthState): Promise<void> {
+  await getStore("auth").setJSON(AUTH_BLOB_KEY, state);
 }
 
 const app = express();
@@ -223,6 +327,28 @@ const LOGIN_MAX_FAILURES = 10;
 
 const loginKey = (ip: string) => `login_${ip.replace(/[^a-zA-Z0-9]/g, "-")}`;
 
+// Shared by /login and /forgot-password: a wrong username on the reset form is a
+// failed auth attempt like any other, and counting it here is what caps username
+// guessing at the same budget as guessing the password outright.
+type Attempts = { count: number; resetAt: number };
+const readAuthFailures = async (ip: string, now: number): Promise<Attempts | null> => {
+  let attempts: Attempts | null = null;
+  try {
+    attempts = await getStore("ratelimits").get(loginKey(ip), { type: "json" });
+  } catch {
+    attempts = null;
+  }
+  return attempts && now <= attempts.resetAt ? attempts : null;
+};
+const noteAuthFailure = async (ip: string, now: number, attempts: Attempts | null) => {
+  await getStore("ratelimits")
+    .setJSON(loginKey(ip), {
+      count: (attempts?.count || 0) + 1,
+      resetAt: attempts?.resetAt || now + LOGIN_WINDOW_MS,
+    })
+    .catch(() => {});
+};
+
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
   const validUser = process.env.ADMIN_USERNAME;
@@ -235,42 +361,151 @@ router.post("/login", async (req, res) => {
 
   const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").toString().split(",")[0].trim();
   const now = Date.now();
-  const throttleStore = getStore("ratelimits");
-  const key = loginKey(ip);
-
-  let attempts: { count: number; resetAt: number } | null = null;
-  try {
-    attempts = await throttleStore.get(key, { type: "json" });
-  } catch {
-    attempts = null;
-  }
-  if (attempts && now > attempts.resetAt) attempts = null;
+  const attempts = await readAuthFailures(ip, now);
   if (attempts && attempts.count >= LOGIN_MAX_FAILURES) {
     return res.status(429).json({ success: false, message: "Too many attempts. Try again later." });
   }
 
-  if (safeEqual(username || "", validUser) && safeEqual(password || "", validPass)) {
-    await throttleStore.delete(key).catch(() => {});
-    res.json({ success: true, token: signToken(username) });
+  // A completed reset supersedes ADMIN_PASSWORD; with no override, the env var
+  // stands. If the override can't be read we refuse rather than fall back —
+  // otherwise a storage fault would silently re-enable the old password.
+  let override: StoredSecret | undefined;
+  try {
+    override = (await readAdminAuth()).password;
+  } catch (e) {
+    console.error("[Login] Could not read stored credentials:", e);
+    return res.status(500).json({ success: false, message: "Server auth is unavailable" });
+  }
+  const passwordOk = override
+    ? secretMatches(override, password || "")
+    : safeEqual(password || "", validPass);
+
+  if (safeEqual(username || "", validUser) && passwordOk) {
+    await getStore("ratelimits").delete(loginKey(ip)).catch(() => {});
+    res.json({ success: true, token: signToken(username, override?.updatedAt || 0) });
   } else {
-    await throttleStore
-      .setJSON(key, {
-        count: (attempts?.count || 0) + 1,
-        resetAt: attempts?.resetAt || now + LOGIN_WINDOW_MS,
-      })
-      .catch(() => {});
+    await noteAuthFailure(ip, now, attempts);
     res.status(401).json({ success: false, message: "Invalid credentials" });
   }
 });
 
-const requireAuth = (req: any, res: any, next: any) => {
+// Password reset, step 1: mail a one-time code to the owner's address over the
+// same Resend path the contact form uses. The recipient is hard-coded, so the
+// request body has no say in where the code lands.
+router.post("/forgot-password", async (req, res) => {
+  const validUser = process.env.ADMIN_USERNAME;
+  if (!validUser || !process.env.ADMIN_PASSWORD || !process.env.AUTH_SECRET) {
+    return res.status(500).json({ success: false, error: "Server auth is not configured" });
+  }
+  try {
+    const { username } = req.body || {};
+    const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").toString().split(",")[0].trim();
+    const now = Date.now();
+
+    // Naming the admin account is the price of admission. It doesn't protect the
+    // code itself — that still only ever lands in the owner's inbox — but it stops
+    // a passer-by who stumbles onto /admin from putting anything in that inbox at
+    // all. A wrong guess burns one of the shared login attempts, so working the
+    // username out costs exactly what brute-forcing the password would.
+    const attempts = await readAuthFailures(ip, now);
+    if (attempts && attempts.count >= LOGIN_MAX_FAILURES) {
+      return res.status(429).json({ success: false, error: "Too many attempts. Try again later." });
+    }
+    if (!safeEqual(String(username || ""), validUser)) {
+      await noteAuthFailure(ip, now, attempts);
+      return res.status(401).json({ success: false, error: "That isn't the admin username." });
+    }
+
+    const state = await readAdminAuth();
+    const { recent, retryAfterMs } = resetThrottle(state.requests, now);
+    if (retryAfterMs > 0) {
+      return res.status(429).json({
+        success: false,
+        error: `Please wait ${Math.ceil(retryAfterMs / 1000)}s before requesting another code.`,
+      });
+    }
+
+    const code = generateResetCode();
+    const nextState: AdminAuthState = {
+      ...state,
+      reset: { code: makeSecret(code), expiresAt: now + RESET_CODE_TTL_MS, attempts: 0 },
+      requests: [...recent, now],
+    };
+
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) {
+      // The contact route simulates a send when the key is missing; a reset code
+      // is worthless unless it's visible, so print it to the function log.
+      console.warn(`[Reset] No RESEND_API_KEY. Code for "${validUser}" is ${code}`);
+      await writeAdminAuth(nextState);
+      return res.json({ success: true, simulated: true });
+    }
+
+    const resend = new Resend(RESEND_API_KEY);
+    const { error } = await resend.emails.send({
+      from: "onboarding@resend.dev",
+      to: "jakeypay@gmail.com",
+      subject: "Portfolio Admin: password reset code",
+      html: resetCodeEmailHtml(validUser, code),
+    });
+
+    if (error) {
+      console.error("[Reset] Resend Error:", error);
+      return res.status(500).json({ success: false, error: `Resend Error: ${error.name} - ${error.message}` });
+    }
+
+    await writeAdminAuth(nextState);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error sending reset code:", err);
+    res.status(500).json({ success: false, error: err.message || "Internal server error" });
+  }
+});
+
+// Password reset, step 2: trade the code for a new password.
+router.post("/reset-password", async (req, res) => {
+  const { code, newPassword } = req.body || {};
+  if (!code || !newPassword) {
+    return res.status(400).json({ success: false, error: "Code and new password are required." });
+  }
+  const password = String(newPassword);
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > 200) {
+    return res.status(400).json({ success: false, error: `Password must be ${MIN_PASSWORD_LENGTH}-200 characters.` });
+  }
+
+  const state = await readAdminAuth();
+  const pending = state.reset;
+  const now = Date.now();
+
+  if (!pending || now > pending.expiresAt) {
+    if (pending) await writeAdminAuth({ ...state, reset: undefined });
+    return res.status(400).json({ success: false, error: "That code has expired. Request a new one." });
+  }
+  if (pending.attempts >= RESET_MAX_ATTEMPTS) {
+    await writeAdminAuth({ ...state, reset: undefined });
+    return res.status(429).json({ success: false, error: "Too many wrong codes. Request a new one." });
+  }
+  if (!secretMatches(pending.code, String(code).trim())) {
+    await writeAdminAuth({ ...state, reset: { ...pending, attempts: pending.attempts + 1 } });
+    return res.status(401).json({ success: false, error: "Incorrect code." });
+  }
+
+  // Burn the code in the same write that stores the password so it can't be replayed.
+  await writeAdminAuth({ ...state, password: makeSecret(password), reset: undefined });
+  res.json({ success: true });
+});
+
+const requireAuth = async (req: any, res: any, next: any) => {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (token && verifyToken(token)) {
-    next();
-  } else {
-    res.status(401).json({ error: "Unauthorized" });
+  try {
+    if (token && verifyToken(token, await credentialVersion())) {
+      return next();
+    }
+  } catch (e) {
+    console.error("[Auth] Could not read stored credentials:", e);
   }
+  res.status(401).json({ error: "Unauthorized" });
 };
 
 router.get("/data", async (req, res) => {
