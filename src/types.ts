@@ -12,6 +12,7 @@ export interface GalleryImage {
   videoUrl?: string;
   fileName?: string;
   processInfoHtml?: string;
+  addedAt?: number; // ms timestamp stamped by the admin panel; drives the "Latest Post" shortcut
 }
 
 export interface Project {

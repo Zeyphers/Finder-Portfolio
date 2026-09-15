@@ -92,6 +92,18 @@ export function AdminPanel() {
   const [backupsList, setBackupsList] = useState<any[]>([]);
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [uploadingGifs, setUploadingGifs] = useState(false);
+
+  // "Add YouTube" feedback: scroll the new video card into view, focus its URL
+  // box so the link can be pasted straight in, and clear the highlight shortly after.
+  const [justAddedVideo, setJustAddedVideo] = useState<{ projectId: string; index: number } | null>(null);
+  useEffect(() => {
+    if (!justAddedVideo) return;
+    const card = document.querySelector<HTMLElement>(`[data-gallery-item="${justAddedVideo.projectId}:${justAddedVideo.index}"]`);
+    card?.scrollIntoView({ behavior: "smooth", block: "center" });
+    card?.querySelector<HTMLInputElement>("input[data-video-url]")?.focus({ preventScroll: true });
+    const t = setTimeout(() => setJustAddedVideo(null), 1800);
+    return () => clearTimeout(t);
+  }, [justAddedVideo]);
   // Progress message while a zip export/restore is running (null = idle).
   const [zipProgress, setZipProgress] = useState<string | null>(null);
   // Progress message while a save is doing extra work, e.g. moving embedded images out.
@@ -460,11 +472,13 @@ export function AdminPanel() {
   };
 
   const addYouTubeLink = (projectId: string) => {
+    const target = localProjects.find(p => p.id === projectId);
+    if (target) setJustAddedVideo({ projectId, index: target.gallery.length });
     setLocalProjects(localProjects.map(p => {
       if (p.id === projectId) {
         return {
           ...p,
-          gallery: [...p.gallery, { url: "https://img.youtube.com/vi/gB9mSyxdhyQ/maxresdefault.jpg", caption: "New Video", isVideo: true, videoUrl: "" }]
+          gallery: [...p.gallery, { url: "https://img.youtube.com/vi/gB9mSyxdhyQ/maxresdefault.jpg", caption: "New Video", isVideo: true, videoUrl: "", addedAt: Date.now() }]
         };
       }
       return p;
@@ -626,13 +640,13 @@ export function AdminPanel() {
     if (!files || files.length === 0) return;
 
     try {
-      const newGalleryItems: { url: string, caption: string, fileName?: string }[] = [];
+      const newGalleryItems: { url: string, caption: string, fileName?: string, addedAt?: number }[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
+
         try {
           const url = await uploadFileWithChunks(file);
-          newGalleryItems.push({ url, caption: "New Image", fileName: file.name });
+          newGalleryItems.push({ url, caption: "New Image", fileName: file.name, addedAt: Date.now() });
         } catch (err: any) {
           alert(`Upload failed for ${file.name}: ${err.message || String(err)}`);
         }
@@ -662,21 +676,51 @@ export function AdminPanel() {
     e.target.value = "";
   };
 
-  const downloadUrls = () => {
-    const urls: string[] = [];
+  // YouTube video id from a watch / youtu.be link. The GIF uploader uses this
+  // too, so the URL list and the `<id>___title.gif` matching always agree.
+  const getYouTubeId = (url: string): string | null => {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || null;
+      if (u.hostname.includes("youtu.be")) return u.pathname.slice(1) || null;
+    } catch {}
+    return null;
+  };
+
+  // Which videos still need a GIF thumbnail. A video counts as done once its
+  // thumbnail is a .gif (handleGifUpload swaps the YouTube still for the
+  // uploaded GIF). Deduped by video id, since one video can sit in several
+  // folders — it needs a GIF if any copy is still missing one.
+  const gifStatus = (() => {
+    const needed = new Map<string, { url: string; label: string; folder: string }>();
+    const all = new Set<string>();
     localProjects.forEach(proj => {
       proj.gallery.forEach(img => {
-        if (img.isVideo && img.videoUrl) {
-          urls.push(img.videoUrl);
-        }
+        if (!img.isVideo || !img.videoUrl) return;
+        const id = getYouTubeId(img.videoUrl) || img.videoUrl;
+        all.add(id);
+        if (/\.gif(?:$|[?#])/i.test(img.url || "") || needed.has(id)) return;
+        needed.set(id, {
+          url: img.videoUrl,
+          label: img.fileName || img.caption || id,
+          folder: (proj.name || "").split(" — ")[0],
+        });
       });
     });
-    
-    if (urls.length === 0) {
+    return { needed: Array.from(needed.values()), total: all.size };
+  })();
+
+  const downloadUrls = () => {
+    if (gifStatus.total === 0) {
       alert("No YouTube URLs found in your projects.");
       return;
     }
-    
+    if (gifStatus.needed.length === 0) {
+      alert(`All ${gifStatus.total} videos already have GIF thumbnails — nothing to download.`);
+      return;
+    }
+
+    const urls = gifStatus.needed.map(v => v.url);
     const blob = new Blob([urls.join('\n')], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -690,9 +734,19 @@ import subprocess
 import os
 import re
 import json
+import shutil
 
-YTDLP  = r"C:\\Users\\jacob.szczepaniak\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\yt-dlp.exe"
-FFMPEG = r"C:\\Users\\jacob.szczepaniak\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\ffmpeg.exe"
+# Find yt-dlp / ffmpeg on the PATH so this works on both the Mac (Homebrew)
+# and Windows. Set YTDLP / FFMPEG env vars to point at a specific binary.
+def find_tool(name):
+    path = os.environ.get(name.upper().replace("-", "")) or shutil.which(name)
+    if not path:
+        sys.exit(f"Could not find {name}. Install it (Mac: brew install {name}) "
+                 f"or set the {name.upper().replace('-', '')} environment variable to its path.")
+    return path
+
+YTDLP  = find_tool("yt-dlp")
+FFMPEG = find_tool("ffmpeg")
 
 def extract_video_id(url):
     match = re.search(r"(?:v=|youtu\\.be/)([0-9A-Za-z_-]{11})", url)
@@ -792,15 +846,7 @@ if __name__ == "__main__":
         newProjects.forEach((proj: any) => {
           proj.gallery.forEach((img: any) => {
             if (img.isVideo && img.videoUrl) {
-              let currentYtId = null;
-              try {
-                const urlObj = new URL(img.videoUrl);
-                if (urlObj.hostname.includes("youtube.com")) {
-                  currentYtId = urlObj.searchParams.get("v") || "";
-                } else if (urlObj.hostname.includes("youtu.be")) {
-                  currentYtId = urlObj.pathname.slice(1);
-                }
-              } catch(e) {}
+              const currentYtId = getYouTubeId(img.videoUrl);
               
               if (currentYtId === ytId) {
                 img.url = url;
@@ -1256,9 +1302,21 @@ if __name__ == "__main__":
                       <span>Upload Images</span>
                       <input type="file" multiple accept="image/*,.gif" className="hidden" onChange={e => handleFileUpload(project.id, e)} />
                     </label>
-                    <button onClick={() => addYouTubeLink(project.id)} className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-sm font-medium transition flex items-center space-x-1.5 border border-red-200">
-                      <FileVideo className="w-4 h-4" />
-                      <span>Add YouTube</span>
+                    <button
+                      onClick={() => addYouTubeLink(project.id)}
+                      className={`${justAddedVideo?.projectId === project.id ? "bg-emerald-50 text-emerald-700 border-emerald-300" : "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"} px-3 py-1.5 rounded-md text-sm font-medium transition active:scale-95 flex items-center space-x-1.5 border`}
+                    >
+                      {justAddedVideo?.projectId === project.id ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Added</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileVideo className="w-4 h-4" />
+                          <span>Add YouTube</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -1270,7 +1328,11 @@ if __name__ == "__main__":
                     </div>
                   ) : (
                     project.gallery.map((img, index) => (
-                      <div key={index} className="group relative border border-slate-200 rounded-lg overflow-hidden bg-slate-100 flex flex-col aspect-square">
+                      <div
+                        key={index}
+                        data-gallery-item={`${project.id}:${index}`}
+                        className={`group relative border border-slate-200 rounded-lg overflow-hidden bg-slate-100 flex flex-col aspect-square ${justAddedVideo?.projectId === project.id && justAddedVideo.index === index ? "ring-2 ring-red-400 ring-offset-2 animate-pulse" : ""}`}
+                      >
                         <div className="flex-1 bg-black/5 relative p-2 flex items-center justify-center min-h-0">
                           {img.isVideo ? (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded text-red-500 overflow-hidden relative">
@@ -1313,6 +1375,7 @@ if __name__ == "__main__":
                             <input 
                               type="text" 
                               className="w-full text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              data-video-url
                               value={img.videoUrl || ""}
                               onChange={(e) => updateImageField(project.id, index, "videoUrl", e.target.value)}
                               placeholder="YouTube URL"
@@ -1602,6 +1665,26 @@ if __name__ == "__main__":
                 <div className="flex flex-col space-y-4">
                   <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
                     <h4 className="text-xs font-semibold text-slate-700 mb-2">Step 1: Download Links & Script</h4>
+                    {gifStatus.total > 0 && (
+                      <div className="text-[11px] mb-3">
+                        {gifStatus.needed.length === 0 ? (
+                          <p className="text-emerald-700 font-medium">All {gifStatus.total} videos have GIF thumbnails.</p>
+                        ) : (
+                          <details>
+                            <summary className="cursor-pointer text-amber-700 font-medium">
+                              {gifStatus.needed.length} of {gifStatus.total} videos still need GIFs — urls.txt only includes these. Show which
+                            </summary>
+                            <ul className="mt-2 ml-4 list-disc text-slate-600 space-y-0.5">
+                              {gifStatus.needed.map(v => (
+                                <li key={v.url}>
+                                  {v.label} <span className="text-slate-400">— {v.folder}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </div>
+                    )}
                     <div className="flex space-x-2">
                       <button 
                         onClick={downloadUrls}
@@ -1617,7 +1700,7 @@ if __name__ == "__main__":
                       </button>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
-                      Requires <code>python</code>, <code>yt-dlp</code>, and <code>ffmpeg</code> installed on your system. Run <code>python make_gifs.py</code> in the same folder as <code>urls.txt</code> to generate the GIFs locally.
+                      Requires <code>python3</code>, <code>yt-dlp</code>, and <code>ffmpeg</code> installed on your system (Mac: <code>brew install yt-dlp ffmpeg</code>). Run <code>python3 make_gifs.py</code> in the same folder as <code>urls.txt</code> to generate the GIFs locally.
                     </p>
                   </div>
 

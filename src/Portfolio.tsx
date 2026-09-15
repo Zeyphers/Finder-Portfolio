@@ -961,6 +961,31 @@ export default function Portfolio() {
     return EXTERNAL_LINKS.filter(l => l.name.toLowerCase().includes(q));
   }, [searchQuery, EXTERNAL_LINKS]);
 
+  // "Latest Post" shortcut: the most recently added gallery item across all
+  // folders. New items carry `addedAt` (stamped by the admin panel); older
+  // uploads fall back to the Date.now() both upload routes embed in the file
+  // name (`name-1712345678901.png`). Undated items score 0, and ties go to the
+  // later item — so with no dates at all it's the last item of the last folder,
+  // since the admin appends new items to the end.
+  const latestPost = useMemo(() => {
+    const timeOf = (img: GalleryImage): number => {
+      if (typeof img.addedAt === "number") return img.addedAt;
+      const m = (img.url || "").match(/-(\d{13})\.[a-z0-9]{2,5}(?![a-z0-9])/i);
+      return m ? Number(m[1]) : 0;
+    };
+    let best: { project: Project; index: number; img: GalleryImage; time: number } | null = null;
+    for (const project of PROJECTS) {
+      const gallery = project.gallery || [];
+      for (let index = 0; index < gallery.length; index++) {
+        const img = gallery[index];
+        if (!img?.url) continue;
+        const time = timeOf(img);
+        if (!best || time >= best.time) best = { project, index, img, time };
+      }
+    }
+    return best;
+  }, [PROJECTS]);
+
   const getSectionTitle = (id: string) => {
     if (id === "overview") return "Overview";
     const p = PROJECTS.find(item => item.id === id);
@@ -1489,6 +1514,44 @@ export default function Portfolio() {
                               Contact Me
                             </span>
                             <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full`}>Application</span>
+                          </button>
+                        )}
+
+                        {/* Shortcut: Latest Post — thumbnail of the newest gallery item; opens it
+                            in its folder with the lightbox already up. */}
+                        {latestPost && (searchQuery === "" || "latest post".includes(searchQuery.toLowerCase())) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigateTo(latestPost.project.id);
+                              setLightboxIndex(latestPost.index);
+                            }}
+                            title={`Open in ${latestPost.project.name.split(" — ")[0]}`}
+                            className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
+                          >
+                            <div className={`transition-colors duration-500 ${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] relative mb-2 overflow-hidden`}>
+                              <ProgressiveImage
+                                src={getThumbUrl(latestPost.img.url, 320)}
+                                fallbackSrc={getImageUrl(latestPost.img.url)}
+                                alt={latestPost.img.caption || "Latest post"}
+                                objectFit="cover"
+                                className="w-full h-full"
+                                containerClassName="absolute inset-0"
+                                referrerPolicy="no-referrer"
+                                draggable={false}
+                              />
+                              {latestPost.img.isVideo && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                                  <Play className="w-9 h-9 text-white/85 fill-white/85 drop-shadow-lg" />
+                                </div>
+                              )}
+                            </div>
+                            <span className={`text-[15.5px] font-medium text-center ${styles.textMuted} truncate w-full px-1`}>
+                              Latest Post
+                            </span>
+                            <span className={`text-[11px] font-mono ${styles.textMuted} mt-1 text-center w-full truncate px-1`}>
+                              {latestPost.project.name.split(" — ")[0]}
+                            </span>
                           </button>
                         )}
 
