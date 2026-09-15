@@ -1536,7 +1536,10 @@ export default function Portfolio() {
                                 alt={latestPost.img.caption || "Latest post"}
                                 objectFit="cover"
                                 className="w-full h-full"
-                                containerClassName="absolute inset-0"
+                                // w-full h-full, not absolute inset-0: ProgressiveImage always adds
+                                // `relative` to its wrapper, which beats `absolute`, so the wrapper
+                                // would shrink to the image's height and leave the bottom empty.
+                                containerClassName="w-full h-full"
                                 referrerPolicy="no-referrer"
                                 draggable={false}
                               />
