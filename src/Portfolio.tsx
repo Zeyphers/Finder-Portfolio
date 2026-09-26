@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
 import { FolderIcon } from "./components/FolderIcon";
-import { ProgressiveImage, loadedImagesCache, computeAvgColor } from "./components/ProgressiveImage";
+import { ProgressiveImage, loadedImagesCache, computeAvgColor, imageAvgColors } from "./components/ProgressiveImage";
+import { PreviewClip } from "./components/PreviewClip";
 import BootAnimation from "./components/BootAnimation";
 import { playErrorSound, setErrorSoundUrl } from "./sound";
 
@@ -14,7 +15,7 @@ const Boids = lazy(() => import("./components/Boids"));
 // Import data context for global state
 import { useAppletData } from "./DataContext";
 import { Project, GalleryImage } from "./types";
-import { getImageUrl, getThumbUrl } from "./api";
+import { getImageUrl, getThumbUrl, isVideoFile, isGifFile } from "./api";
 import { sanitizeRichText } from "./sanitizeHtml";
 import { useLocation, useNavigate } from "react-router-dom";
 import { buildPath, resolvePath } from "./urlSlug";
@@ -80,6 +81,41 @@ const getYoutubeEmbedUrl = (url: string): string => {
   return url;
 };
 
+// Until its player has loaded, the YouTube iframe shows as a blank white box,
+// which made videos feel slower than they were. Hold it invisible over a black
+// backdrop with the video's own thumbnail, then fade it in once it has loaded.
+const YouTubeEmbed = ({ url, title }: { url: string; title?: string }) => {
+  const [loaded, setLoaded] = useState(false);
+  const src = getYoutubeEmbedUrl(url);
+  const id = src.match(/\/embed\/([^?#/]+)/)?.[1];
+  useEffect(() => {
+    setLoaded(false);
+    // Never leave the player hidden if the load event is slow or never arrives.
+    const t = setTimeout(() => setLoaded(true), 4000);
+    return () => clearTimeout(t);
+  }, [src]);
+  return (
+    <div className="relative w-full h-full bg-black shadow-2xl">
+      {!loaded && id && (
+        <img
+          src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-contain opacity-70"
+        />
+      )}
+      <iframe
+        src={src}
+        title={title}
+        onLoad={() => setLoaded(true)}
+        className={`absolute inset-0 w-full h-full border-0 transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      ></iframe>
+    </div>
+  );
+};
+
 // getImageUrl is imported from api.ts
 
 // Safe localStorage wrappers to prevent iframe cross-origin DOMException
@@ -99,6 +135,9 @@ interface MasonryGridProps {
   imageAspectRatios: Record<string, number>;
   textMutedStyle: string;
   onImageClick: (index: number) => void;
+  // While a YouTube video plays in the lightbox, animated previews (clips and
+  // GIFs) behind it are unmounted so their downloads don't compete with it.
+  pauseAnimatedPreviews?: boolean;
   className?: string;
 }
 
@@ -108,7 +147,7 @@ type MasonryCell =
   | { kind: "folder"; project: Project }
   | { kind: "image"; img: GalleryImage; imageIndex: number };
 
-const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedProjectName, imageAspectRatios, textMutedStyle, onImageClick, className = "" }: MasonryGridProps) => {
+const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedProjectName, imageAspectRatios, textMutedStyle, onImageClick, pauseAnimatedPreviews = false, className = "" }: MasonryGridProps) => {
   const cells: MasonryCell[] = [
     ...folders.map((project) => ({ kind: "folder", project } as MasonryCell)),
     ...images.map((img, imageIndex) => ({ kind: "image", img, imageIndex } as MasonryCell)),
@@ -168,7 +207,13 @@ const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedPro
                   className={`group flex flex-col items-center justify-start p-2 cursor-pointer select-none rounded-lg w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                 >
                   <div className="w-full relative p-1" style={{ aspectRatio: img.isVideo ? "16 / 9" : (imageAspectRatios[img.url] ? `${imageAspectRatios[img.url]}` : "1 / 1") }}>
-                    <ProgressiveImage src={displaySrc} fallbackSrc={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
+                    {pauseAnimatedPreviews && (isVideoFile(img.url) || isGifFile(img.url)) ? (
+                      <div className="absolute inset-1 rounded-sm bg-slate-300/40 dark:bg-slate-600/40" style={imageAvgColors[displaySrc] ? { backgroundColor: imageAvgColors[displaySrc] } : undefined} />
+                    ) : isVideoFile(img.url) ? (
+                      <PreviewClip src={displaySrc} className="w-full h-full rounded-sm" containerClassName="absolute inset-1 rounded-sm" />
+                    ) : (
+                      <ProgressiveImage src={displaySrc} fallbackSrc={getImageUrl(img.url)} alt={img.caption} objectFit="cover" className="w-full h-full rounded-sm" containerClassName="absolute inset-1" referrerPolicy="no-referrer" draggable={false} />
+                    )}
                     {img.isVideo && <div className="absolute inset-1 flex items-center justify-center pointer-events-none z-20"><Play className="w-14 h-14 text-slate-500/40 fill-slate-500/40 drop-shadow-lg" /></div>}
                   </div>
                   <div className={`text-[14px] md:text-[15.5px] font-medium text-center ${textMutedStyle} mt-1 break-words leading-tight w-full px-1`}>{filename}</div>
@@ -265,11 +310,11 @@ export default function Portfolio() {
   // queue loads a few images at a time: the currently open folder's images are
   // queued at the front immediately, everything else waits for browser idle time.
   type PreloadTask = { src: string; ratioKey?: string };
-  const preloadQueueRef = useRef<{ list: PreloadTask[]; active: number }>({ list: [], active: 0 });
+  const preloadQueueRef = useRef<{ list: PreloadTask[]; active: number; paused: boolean }>({ list: [], active: 0, paused: false });
 
   const pumpPreloadQueue = React.useCallback(() => {
     const q = preloadQueueRef.current;
-    while (q.active < 4 && q.list.length > 0) {
+    while (!q.paused && q.active < 4 && q.list.length > 0) {
       const task = q.list.shift()!;
       q.active++;
       const i = new Image();
@@ -838,6 +883,16 @@ export default function Portfolio() {
     return PROJECTS.find(p => p.id === activeSelection) || null;
   }, [activeSelection, PROJECTS]);
 
+  // A YouTube video is playing in the lightbox: give it the connection. Animated
+  // previews behind it are unmounted (see MasonryGrid) and the background image
+  // preloader holds off until the lightbox closes.
+  const videoLightboxOpen =
+    lightboxIndex !== null && !!selectedProject?.gallery[lightboxIndex]?.isVideo;
+  useEffect(() => {
+    preloadQueueRef.current.paused = videoLightboxOpen;
+    if (!videoLightboxOpen) pumpPreloadQueue();
+  }, [videoLightboxOpen, pumpPreloadQueue]);
+
   // --- Deep-link URL <-> state sync ---
   // A guard so the two effects don't fight on the render where data first loads:
   // when URL->state applies a change, the paired state->URL run must skip once
@@ -1120,13 +1175,21 @@ export default function Portfolio() {
                 onTouchEnd={handleTouchEnd}
               >
                 {selectedProject.gallery[lightboxIndex].isVideo && selectedProject.gallery[lightboxIndex].videoUrl ? (
-                  <iframe 
-                    src={getYoutubeEmbedUrl(selectedProject.gallery[lightboxIndex].videoUrl!)}
+                  <YouTubeEmbed
+                    url={selectedProject.gallery[lightboxIndex].videoUrl!}
                     title={selectedProject.gallery[lightboxIndex].caption}
-                    className="w-full h-full shadow-2xl border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  ></iframe>
+                  />
+                ) : isVideoFile(selectedProject.gallery[lightboxIndex].url) ? (
+                  // A preview clip with no YouTube link to open: play the clip itself.
+                  <video
+                    key={selectedProject.gallery[lightboxIndex].url}
+                    src={getImageUrl(selectedProject.gallery[lightboxIndex].url)}
+                    controls
+                    autoPlay
+                    loop
+                    playsInline
+                    className="max-w-full max-h-full bg-black shadow-2xl"
+                  />
                 ) : (
                   <ProgressiveImage
                     src={getImageUrl(selectedProject.gallery[lightboxIndex].url)}
@@ -1530,6 +1593,9 @@ export default function Portfolio() {
                             className={`group flex flex-col items-center justify-start p-2.5 rounded-2xl border border-transparent cursor-pointer select-none w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70`}
                           >
                             <div className={`transition-colors duration-500 ${isDark ? "bg-[#2c2c2e] border-zinc-800" : "bg-white border-zinc-200"} border-2 shadow-md rounded-2xl w-[120px] h-[120px] relative mb-2 overflow-hidden`}>
+                              {isVideoFile(latestPost.img.url) ? (
+                                <PreviewClip src={getImageUrl(latestPost.img.url)} className="w-full h-full" containerClassName="w-full h-full" />
+                              ) : (
                               <ProgressiveImage
                                 src={getThumbUrl(latestPost.img.url, 320)}
                                 fallbackSrc={getImageUrl(latestPost.img.url)}
@@ -1543,6 +1609,7 @@ export default function Portfolio() {
                                 referrerPolicy="no-referrer"
                                 draggable={false}
                               />
+                              )}
                               {latestPost.img.isVideo && (
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
                                   <Play className="w-9 h-9 text-white/85 fill-white/85 drop-shadow-lg" />
@@ -1642,9 +1709,10 @@ export default function Portfolio() {
                         {/* Subfolders are mixed into the gallery (folders first, then files) — Finder-style */}
                         {(childFolders.length > 0 || selectedProject.gallery.length > 0) && (
                           <>
-                            {/* Desktop Masonry (4 columns) */}
+                            {/* One grid, 4 columns on desktop / 2 on mobile. (Mounting both
+                                and hiding one with CSS set up every tile's media twice.) */}
                             <MasonryGrid
-                              columns={4}
+                              columns={isMobile ? 2 : 4}
                               images={selectedProject.gallery}
                               folders={childFolders}
                               onFolderClick={navigateTo}
@@ -1652,20 +1720,7 @@ export default function Portfolio() {
                               imageAspectRatios={imageAspectRatios}
                               textMutedStyle={styles.textMuted}
                               onImageClick={setLightboxIndex}
-                              className="hidden md:flex"
-                            />
-
-                            {/* Mobile Masonry (2 columns) */}
-                            <MasonryGrid
-                              columns={2}
-                              images={selectedProject.gallery}
-                              folders={childFolders}
-                              onFolderClick={navigateTo}
-                              selectedProjectName={selectedProject.name}
-                              imageAspectRatios={imageAspectRatios}
-                              textMutedStyle={styles.textMuted}
-                              onImageClick={setLightboxIndex}
-                              className="flex md:hidden"
+                              pauseAnimatedPreviews={videoLightboxOpen}
                             />
                           </>
                         )}

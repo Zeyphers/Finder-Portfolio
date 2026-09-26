@@ -33,6 +33,14 @@ export const getDataUrl = (): string => {
   return "/.netlify/functions/data";
 };
 
+const urlPath = (url: string) => (url || "").toLowerCase().split(/[?#]/)[0];
+
+// Video-tile previews are short muted clips (.mp4/.webm). They replace the old
+// animated GIFs, which were 10–75x larger for the same 10 seconds of footage.
+export const isVideoFile = (url: string): boolean => /\.(mp4|webm|m4v|mov)$/.test(urlPath(url));
+
+export const isGifFile = (url: string): boolean => urlPath(url).endsWith(".gif");
+
 export const getImageUrl = (url: string): string => {
   if (!url) return "";
   if (url.startsWith("http")) {
@@ -45,7 +53,8 @@ export const getImageUrl = (url: string): string => {
 // masonry grid downloads a resized WebP instead of the full-resolution original
 // (the lightbox still uses getImageUrl for full quality). The source is always a
 // same-site path (uploads or the image-proxy), so no remote_images allowlist is
-// needed. Skipped for GIFs (to keep animation) and SVGs (no raster transform).
+// needed. Skipped for GIFs (to keep animation), SVGs (no raster transform) and
+// video clips (not images at all).
 export const getThumbUrl = (url: string, width = 640): string => {
   const full = getImageUrl(url);
   if (!full) return full;
@@ -54,7 +63,6 @@ export const getThumbUrl = (url: string, width = 640): string => {
   if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".run.app")) {
     return full;
   }
-  const lower = url.toLowerCase().split("?")[0];
-  if (lower.endsWith(".gif") || lower.endsWith(".svg")) return full;
+  if (isGifFile(url) || isVideoFile(url) || urlPath(url).endsWith(".svg")) return full;
   return `/.netlify/images?url=${encodeURIComponent(full)}&w=${width}&q=75`;
 };

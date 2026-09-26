@@ -22,7 +22,7 @@ const persistAvgColors = () => {
 
 // Downsample the image to 1x1 to get its average colour. Same-origin/proxied images are
 // canvas-clean; if a source taints the canvas we just skip it (placeholder stays neutral).
-export const computeAvgColor = (imgEl: HTMLImageElement, key: string): string | undefined => {
+export const computeAvgColor = (imgEl: CanvasImageSource, key: string): string | undefined => {
   if (imageAvgColors[key]) return imageAvgColors[key];
   try {
     const canvas = document.createElement("canvas");
@@ -75,6 +75,9 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
     if (imageAvgColors[src]) setAvg(imageAvgColors[src]);
 
     let cancelled = false;
+    // The off-screen loader currently downloading, so unmounting can abort it —
+    // otherwise a multi-MB GIF keeps downloading after its tile is gone.
+    let current: HTMLImageElement | null = null;
 
     const attempt = (url: string, isLastResort: boolean) => {
       const finish = (el: HTMLImageElement) => {
@@ -95,6 +98,7 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
       };
 
       const loader = new Image();
+      current = loader;
       loader.src = url;
       if (typeof loader.decode === "function") {
         loader.decode()
@@ -114,7 +118,11 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
     };
 
     attempt(src, !fallbackSrc);
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Clearing src cancels an in-flight request; a finished one stays cached.
+      if (current && !current.complete) current.src = "";
+    };
   }, [src, fallbackSrc]);
 
   const fitClass = objectFit === "contain" ? "object-contain" : "object-cover";

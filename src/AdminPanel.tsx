@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
 import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, User, Settings, LayoutList, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
-import { getApiUrl, getDataUrl, getImageUrl } from "./api";
+import { getApiUrl, getDataUrl, getImageUrl, isVideoFile } from "./api";
 import { exportSiteZip, importSiteZip } from "./backupZip";
 import { countProjectInlineImages, extractProjectInlineImages } from "./inlineImages";
 import { ProgressiveImage } from "./components/ProgressiveImage";
+import { PreviewClip } from "./components/PreviewClip";
 import { ProcessEditorModal } from "./components/ProcessEditorModal";
 import { FormattedTextarea } from "./components/FormattedTextarea";
 import { Reorder } from "motion/react";
@@ -676,8 +677,8 @@ export function AdminPanel() {
     e.target.value = "";
   };
 
-  // YouTube video id from a watch / youtu.be link. The GIF uploader uses this
-  // too, so the URL list and the `<id>___title.gif` matching always agree.
+  // YouTube video id from a watch / youtu.be link. The preview uploader uses this
+  // too, so the URL list and the `<id>___title.mp4` matching always agree.
   const getYouTubeId = (url: string): string | null => {
     try {
       const u = new URL(url);
@@ -687,10 +688,12 @@ export function AdminPanel() {
     return null;
   };
 
-  // Which videos still need a GIF thumbnail. A video counts as done once its
-  // thumbnail is a .gif (handleGifUpload swaps the YouTube still for the
-  // uploaded GIF). Deduped by video id, since one video can sit in several
-  // folders — it needs a GIF if any copy is still missing one.
+  // Which videos still need a preview clip. A video counts as done once its
+  // thumbnail is an .mp4/.webm clip (handleGifUpload swaps the YouTube still for
+  // the uploaded clip). Old GIF previews still count as needed: they're 10–75x
+  // larger than the same clip as MP4 and slow the page down. Deduped by video id,
+  // since one video can sit in several folders — it needs a clip if any copy is
+  // still missing one.
   const gifStatus = (() => {
     const needed = new Map<string, { url: string; label: string; folder: string }>();
     const all = new Set<string>();
@@ -699,7 +702,7 @@ export function AdminPanel() {
         if (!img.isVideo || !img.videoUrl) return;
         const id = getYouTubeId(img.videoUrl) || img.videoUrl;
         all.add(id);
-        if (/\.gif(?:$|[?#])/i.test(img.url || "") || needed.has(id)) return;
+        if (isVideoFile(img.url || "") || needed.has(id)) return;
         needed.set(id, {
           url: img.videoUrl,
           label: img.fileName || img.caption || id,
@@ -716,7 +719,7 @@ export function AdminPanel() {
       return;
     }
     if (gifStatus.needed.length === 0) {
-      alert(`All ${gifStatus.total} videos already have GIF thumbnails — nothing to download.`);
+      alert(`All ${gifStatus.total} videos already have preview clips — nothing to download.`);
       return;
     }
 
@@ -757,8 +760,8 @@ def process_videos(file_path):
         urls = [line.strip() for line in f if line.strip()]
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    gifs_dir = os.path.join(script_dir, 'gifs')
-    os.makedirs(gifs_dir, exist_ok=True)
+    previews_dir = os.path.join(script_dir, 'previews')
+    os.makedirs(previews_dir, exist_ok=True)
     
     for url in urls:
         video_id = extract_video_id(url)
@@ -776,18 +779,19 @@ def process_videos(file_path):
             print(f"Could not fetch title for {url}: {e}")
             safe_title = video_id
             
-        gif_path = os.path.join(gifs_dir, f"{video_id}___{safe_title}.gif")
-        if os.path.exists(gif_path):
-            print(f"Skipping {gif_path}, already exists.")
+        clip_path = os.path.join(previews_dir, f"{video_id}___{safe_title}.mp4")
+        if os.path.exists(clip_path):
+            print(f"Skipping {clip_path}, already exists.")
             continue
             
-        print(f"Processing {url} -> {gif_path}")
+        print(f"Processing {url} -> {clip_path}")
         
         temp_video = os.path.join(script_dir, f"temp_{video_id}.mp4")
         cmd_download = [
             YTDLP,
             "--ffmpeg-location", FFMPEG,
-            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+            # Video only (the preview is muted) and no bigger than 720p.
+            "-f", "bestvideo[ext=mp4][height<=720]/bestvideo[ext=mp4]/best[ext=mp4]/best",
             "--download-sections", "*0-10",
             "-o", temp_video,
             url
@@ -796,18 +800,27 @@ def process_videos(file_path):
         try:
             subprocess.run(cmd_download, check=True)
             
-            cmd_gif = [
+            # A short, muted, web-optimised H.264 clip. Same 10 seconds the GIFs
+            # showed, typically 10-75x smaller. +faststart puts the index up
+            # front so the browser can start playing before it has the whole file.
+            cmd_clip = [
                 FFMPEG,
                 "-y",
                 "-i", temp_video,
-                "-vf", "fps=15,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5",
-                "-loop", "0",
-                gif_path
+                "-t", "10",
+                "-an",
+                "-vf", "fps=24,scale=480:-2:flags=lanczos",
+                "-c:v", "libx264",
+                "-preset", "slow",
+                "-crf", "26",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                clip_path
             ]
-            subprocess.run(cmd_gif, check=True)
+            subprocess.run(cmd_clip, check=True)
             
             os.remove(temp_video)
-            print(f"Successfully created {gif_path}")
+            print(f"Successfully created {clip_path}")
             
         except subprocess.CalledProcessError as e:
             print(f"Error processing {url}: {e}")
@@ -821,7 +834,7 @@ if __name__ == "__main__":
     const blob = new Blob([scriptContent], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'make_gifs.py';
+    a.download = 'make_previews.py';
     a.click();
   };
 
@@ -835,7 +848,7 @@ if __name__ == "__main__":
       const newProjects = JSON.parse(JSON.stringify(localProjects));
       
       for (const file of files) {
-        const fileNameMatch = file.name.match(/^([0-9A-Za-z_-]{11})(?:___(.*))?\.gif$/);
+        const fileNameMatch = file.name.match(/^([0-9A-Za-z_-]{11})(?:___(.*))?\.(?:mp4|webm|gif)$/i);
         if (!fileNameMatch) continue;
         const ytId = fileNameMatch[1];
         const titlePart = fileNameMatch[2];
@@ -861,9 +874,9 @@ if __name__ == "__main__":
       }
       
       setLocalProjects(newProjects);
-      alert(`Successfully uploaded and linked ${uploadedCount} GIF thumbnails! Please click "Save Changes" to persist.`);
+      alert(`Successfully uploaded and linked ${uploadedCount} preview clips! Please click "Save Changes" to persist.`);
     } catch (err) {
-      alert("Error uploading GIFs: " + String(err));
+      alert("Error uploading preview clips: " + String(err));
     } finally {
       setUploadingGifs(false);
       e.target.value = "";
@@ -1336,7 +1349,11 @@ if __name__ == "__main__":
                         <div className="flex-1 bg-black/5 relative p-2 flex items-center justify-center min-h-0">
                           {img.isVideo ? (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 rounded text-red-500 overflow-hidden relative">
-                              <ProgressiveImage src={getImageUrl(img.url)} containerClassName="absolute inset-0" className="w-full h-full opacity-50" />
+                              {isVideoFile(img.url) ? (
+                                <PreviewClip src={getImageUrl(img.url)} containerClassName="absolute inset-0" className="w-full h-full opacity-50" />
+                              ) : (
+                                <ProgressiveImage src={getImageUrl(img.url)} containerClassName="absolute inset-0" className="w-full h-full opacity-50" />
+                              )}
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <FileVideo className="w-8 h-8 opacity-90" />
                               </div>
@@ -1659,8 +1676,8 @@ if __name__ == "__main__":
               </div>
 
               <div className="pt-6 border-t border-slate-200">
-                <h3 className="text-sm font-bold text-slate-900 mb-2">Gif Prep & Auto-Thumbnail</h3>
-                <p className="text-xs text-slate-500 mb-4">Export your YouTube links, run a local Python script to generate 10s GIF thumbnails, and upload them here to auto-link them to your videos.</p>
+                <h3 className="text-sm font-bold text-slate-900 mb-2">Video Preview Clips</h3>
+                <p className="text-xs text-slate-500 mb-4">Export your YouTube links, run a local Python script to generate 10s muted MP4 previews, and upload them here to auto-link them to your videos. (Replaces the old GIF previews, which were 10–75x larger.)</p>
                 
                 <div className="flex flex-col space-y-4">
                   <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
@@ -1668,11 +1685,11 @@ if __name__ == "__main__":
                     {gifStatus.total > 0 && (
                       <div className="text-[11px] mb-3">
                         {gifStatus.needed.length === 0 ? (
-                          <p className="text-emerald-700 font-medium">All {gifStatus.total} videos have GIF thumbnails.</p>
+                          <p className="text-emerald-700 font-medium">All {gifStatus.total} videos have preview clips.</p>
                         ) : (
                           <details>
                             <summary className="cursor-pointer text-amber-700 font-medium">
-                              {gifStatus.needed.length} of {gifStatus.total} videos still need GIFs — urls.txt only includes these. Show which
+                              {gifStatus.needed.length} of {gifStatus.total} videos still need an MP4 preview (old GIFs included) — urls.txt only includes these. Show which
                             </summary>
                             <ul className="mt-2 ml-4 list-disc text-slate-600 space-y-0.5">
                               {gifStatus.needed.map(v => (
@@ -1696,22 +1713,22 @@ if __name__ == "__main__":
                         onClick={downloadScript}
                         className="bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-slate-50 transition shadow-sm"
                       >
-                        Download make_gifs.py
+                        Download make_previews.py
                       </button>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
-                      Requires <code>python3</code>, <code>yt-dlp</code>, and <code>ffmpeg</code> installed on your system (Mac: <code>brew install yt-dlp ffmpeg</code>). Run <code>python3 make_gifs.py</code> in the same folder as <code>urls.txt</code> to generate the GIFs locally.
+                      Requires <code>python3</code>, <code>yt-dlp</code>, and <code>ffmpeg</code> installed on your system (Mac: <code>brew install yt-dlp ffmpeg</code>). Run <code>python3 make_previews.py</code> in the same folder as <code>urls.txt</code> to generate the clips into a <code>previews</code> folder.
                     </p>
                   </div>
 
                   <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
-                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Step 2: Upload Generated GIFs</h4>
+                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Step 2: Upload Generated Clips</h4>
                     <label className={`cursor-pointer ${uploadingGifs ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 py-1.5 rounded-md text-xs font-medium inline-block transition shadow-sm`}>
-                      {uploadingGifs ? "Uploading & Linking..." : "Select GIFs from 'gifs' folder"}
+                      {uploadingGifs ? "Uploading & Linking..." : "Select clips from 'previews' folder"}
                       <input 
                         type="file" 
                         multiple
-                        accept=".gif" 
+                        accept=".mp4,.webm,.gif,video/mp4,video/webm" 
                         className="hidden" 
                         disabled={uploadingGifs}
                         onChange={handleGifUpload} 
