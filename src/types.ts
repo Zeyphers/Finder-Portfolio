@@ -13,6 +13,7 @@ export interface GalleryImage {
   fileName?: string;
   processInfoHtml?: string;
   addedAt?: number; // ms timestamp stamped by the admin panel; drives the "Latest Post" shortcut
+  unlisted?: boolean; // hidden from the site (grid, Latest Post, games); still opens via its direct URL
 }
 
 export interface Project {
@@ -44,6 +45,7 @@ export interface Project {
 export interface BootConfig {
   enabled: boolean;
   durationMs: number;
+  repeatVisitorDurationMs?: number; // shorter boot for returning visitors (defaults to 1500ms)
   audioUrl?: string;
   appleLogoUrl?: string;
   invertAppleLogo?: boolean;

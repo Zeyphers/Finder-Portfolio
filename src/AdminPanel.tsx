@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppletData } from "./DataContext";
-import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, User, Settings, LayoutList, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { Folder, Upload, Trash2, Edit2, Plus, Save, LogOut, Link2, FileVideo, Check, RefreshCw, User, Settings, LayoutList, ChevronDown, ChevronUp, Download, EyeOff, MoreHorizontal, ImageUp } from "lucide-react";
 import { Project, GalleryImage, AboutInfo } from "./types";
 import { getApiUrl, getDataUrl, getImageUrl, isVideoFile } from "./api";
+import { buildPath } from "./urlSlug";
 import { exportSiteZip, importSiteZip } from "./backupZip";
 import { countProjectInlineImages, extractProjectInlineImages } from "./inlineImages";
 import { ProgressiveImage } from "./components/ProgressiveImage";
@@ -97,6 +98,21 @@ export function AdminPanel() {
   // "Add YouTube" feedback: scroll the new video card into view, focus its URL
   // box so the link can be pasted straight in, and clear the highlight shortly after.
   const [justAddedVideo, setJustAddedVideo] = useState<{ projectId: string; index: number } | null>(null);
+  const [copiedLinkKey, setCopiedLinkKey] = useState<string | null>(null);
+  // "⋯" menu on gallery cards, keyed `${projectId}:${index}`.
+  const [openImageMenu, setOpenImageMenu] = useState<string | null>(null);
+  const [replacingImage, setReplacingImage] = useState<string | null>(null);
+  const replaceInputRef = React.useRef<HTMLInputElement>(null);
+  const replaceTargetRef = React.useRef<{ projectId: string; imageIndex: number } | null>(null);
+
+  useEffect(() => {
+    if (!openImageMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest?.("[data-image-menu]")) setOpenImageMenu(null);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [openImageMenu]);
   useEffect(() => {
     if (!justAddedVideo) return;
     const card = document.querySelector<HTMLElement>(`[data-gallery-item="${justAddedVideo.projectId}:${justAddedVideo.index}"]`);
@@ -670,6 +686,33 @@ export function AdminPanel() {
     }
   };
 
+  // Swap a gallery item's media in place. Caption, fileName (which share links
+  // are built from), process notes, unlisted and addedAt are all kept.
+  const handleReplaceImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = replaceTargetRef.current;
+    e.target.value = "";
+    replaceTargetRef.current = null;
+    if (!file || !target) return;
+
+    const key = `${target.projectId}:${target.imageIndex}`;
+    setReplacingImage(key);
+    try {
+      const url = await uploadFileWithChunks(file);
+      setLocalProjects(localProjects => localProjects.map(p => {
+        if (p.id !== target.projectId) return p;
+        const newGallery = [...p.gallery];
+        newGallery[target.imageIndex] = { ...newGallery[target.imageIndex], url };
+        return { ...p, gallery: newGallery };
+      }));
+    } catch (err: any) {
+      console.error("Replace error", err);
+      alert(`Replace failed for ${file.name}: ${err.message || String(err)}`);
+    } finally {
+      setReplacingImage(null);
+    }
+  };
+
   const handleFileUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       await processFilesForGallery(projectId, e.target.files);
@@ -910,6 +953,33 @@ if __name__ == "__main__":
       }
       return proj;
     }));
+  };
+
+  const setImageUnlisted = (projectId: string, imageIndex: number, unlisted: boolean) => {
+    setLocalProjects(localProjects.map(proj => {
+      if (proj.id === projectId) {
+        const newGallery = [...proj.gallery];
+        const update = { ...newGallery[imageIndex] };
+        if (unlisted) update.unlisted = true;
+        else delete update.unlisted;
+        newGallery[imageIndex] = update;
+        return { ...proj, gallery: newGallery };
+      }
+      return proj;
+    }));
+  };
+
+  // Unlisted items are only reachable by URL, so offer their share link.
+  const copyImageLink = async (project: Project, imageIndex: number) => {
+    const url = window.location.origin + buildPath(project, imageIndex, localProjects);
+    try {
+      await navigator.clipboard.writeText(url);
+      const key = `${project.id}:${imageIndex}`;
+      setCopiedLinkKey(key);
+      setTimeout(() => setCopiedLinkKey(cur => (cur === key ? null : cur)), 1500);
+    } catch {
+      window.prompt("Copy this link:", url);
+    }
   };
 
   const deleteImage = (projectId: string, imageIndex: number) => {
@@ -1361,6 +1431,13 @@ if __name__ == "__main__":
                           ) : (
                             <ProgressiveImage src={getImageUrl(img.url)} alt="media" objectFit="contain" className="max-w-full max-h-full rounded" containerClassName="w-full h-full flex items-center justify-center" />
                           )}
+
+                          {img.unlisted && (
+                            <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-1.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-medium uppercase tracking-wider shadow-sm" title="Hidden from the site; only reachable by its link">
+                              <EyeOff className="w-3 h-3" />
+                              Unlisted
+                            </div>
+                          )}
                           
                           {/* Image Controls overlay */}
                           <div className="absolute top-2 right-2 flex items-center justify-center gap-2 z-10 transition-opacity duration-200">
@@ -1371,7 +1448,51 @@ if __name__ == "__main__":
                             <button onClick={() => deleteImage(project.id, index)} className="p-1.5 bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 rounded border border-slate-200 shadow-sm transition" title="Delete Media">
                               <Trash2 className="w-4 h-4" />
                             </button>
+                            <div className="relative" data-image-menu>
+                              <button
+                                type="button"
+                                onClick={() => setOpenImageMenu(cur => (cur === `${project.id}:${index}` ? null : `${project.id}:${index}`))}
+                                className="p-1.5 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-700 rounded border border-slate-200 shadow-sm transition"
+                                title="More options"
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+                              {openImageMenu === `${project.id}:${index}` && (
+                                <div className="absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-20 text-xs text-slate-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenImageMenu(null);
+                                      replaceTargetRef.current = { projectId: project.id, imageIndex: index };
+                                      replaceInputRef.current?.click();
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 text-left"
+                                  >
+                                    <ImageUp className="w-3.5 h-3.5" />
+                                    {img.isVideo ? "Replace preview…" : "Replace image…"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenImageMenu(null);
+                                      copyImageLink(project, index);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 text-left"
+                                  >
+                                    <Link2 className="w-3.5 h-3.5" />
+                                    Copy link
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
+
+                          {replacingImage === `${project.id}:${index}` && (
+                            <div className="absolute inset-0 z-20 bg-white/70 flex items-center justify-center text-xs text-slate-600 gap-1.5">
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              Uploading…
+                            </div>
+                          )}
                         </div>
                         <div className="p-2 border-t border-slate-200 bg-white space-y-2">
                           <input 
@@ -1398,6 +1519,28 @@ if __name__ == "__main__":
                               placeholder="YouTube URL"
                             />
                           )}
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer select-none" title="Hide from the site; only reachable by its link">
+                              <input
+                                type="checkbox"
+                                className="w-3.5 h-3.5 accent-amber-500 cursor-pointer"
+                                checked={!!img.unlisted}
+                                onChange={(e) => setImageUnlisted(project.id, index, e.target.checked)}
+                              />
+                              Unlisted
+                            </label>
+                            {img.unlisted && (
+                              <button
+                                type="button"
+                                onClick={() => copyImageLink(project, index)}
+                                className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+                                title="Copy this item's share link"
+                              >
+                                {copiedLinkKey === `${project.id}:${index}` ? <Check className="w-3 h-3" /> : <Link2 className="w-3 h-3" />}
+                                {copiedLinkKey === `${project.id}:${index}` ? "Copied" : "Copy link"}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -2070,6 +2213,8 @@ if __name__ == "__main__":
           </div>
         )}
       </main>
+
+      <input ref={replaceInputRef} type="file" accept="image/*,.gif,.mp4,.webm,video/mp4,video/webm" className="hidden" onChange={handleReplaceImage} />
 
       {processEditorOpen && (
         <ProcessEditorModal

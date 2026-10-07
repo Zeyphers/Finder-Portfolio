@@ -147,10 +147,24 @@ type MasonryCell =
   | { kind: "folder"; project: Project }
   | { kind: "image"; img: GalleryImage; imageIndex: number };
 
+// Gallery indices the lightbox steps through: the listed items, plus `current`
+// itself when it's an unlisted item opened by direct link.
+const lightboxOrder = (gallery: GalleryImage[], current: number): number[] =>
+  gallery.flatMap((img, i) => (!img.unlisted || i === current ? [i] : []));
+
+const stepLightboxIndex = (gallery: GalleryImage[], current: number, dir: 1 | -1): number => {
+  const order = lightboxOrder(gallery, current);
+  const pos = order.indexOf(current);
+  if (order.length === 0 || pos < 0) return current;
+  return order[(pos + dir + order.length) % order.length];
+};
+
 const MasonryGrid = ({ columns, images, folders = [], onFolderClick, selectedProjectName, imageAspectRatios, textMutedStyle, onImageClick, pauseAnimatedPreviews = false, className = "" }: MasonryGridProps) => {
   const cells: MasonryCell[] = [
     ...folders.map((project) => ({ kind: "folder", project } as MasonryCell)),
-    ...images.map((img, imageIndex) => ({ kind: "image", img, imageIndex } as MasonryCell)),
+    // Unlisted items keep their gallery index (so their share URL stays stable)
+    // but aren't shown.
+    ...images.flatMap((img, imageIndex) => (img.unlisted ? [] : [{ kind: "image", img, imageIndex } as MasonryCell])),
   ];
   return (
     <div className={`flex flex-row gap-[10px] items-start w-full ${className}`}>
@@ -348,7 +362,7 @@ export default function Portfolio() {
     const galleryTasks = (p: Project): PreloadTask[] => {
       const tasks: PreloadTask[] = [];
       p.gallery.forEach(img => {
-        if (img.isVideo || preloadedRef.current.has(img.url)) return;
+        if (img.isVideo || img.unlisted || preloadedRef.current.has(img.url)) return;
         preloadedRef.current.add(img.url);
         // Preload the same thumbnail URL the grid renders.
         tasks.push({ src: getThumbUrl(img.url), ratioKey: img.url });
@@ -584,12 +598,10 @@ export default function Portfolio() {
       if (e.key === "Escape") {
         closeLightbox();
       } else if (e.key === "ArrowRight") {
-        const nextIndex = (lightboxIndex + 1) % currentProject.gallery.length;
-        setLightboxIndex(nextIndex);
+        setLightboxIndex(stepLightboxIndex(currentProject.gallery, lightboxIndex, 1));
         setLightboxZoom(1);
       } else if (e.key === "ArrowLeft") {
-        const prevIndex = (lightboxIndex - 1 + currentProject.gallery.length) % currentProject.gallery.length;
-        setLightboxIndex(prevIndex);
+        setLightboxIndex(stepLightboxIndex(currentProject.gallery, lightboxIndex, -1));
         setLightboxZoom(1);
       }
     };
@@ -1033,7 +1045,7 @@ export default function Portfolio() {
       const gallery = project.gallery || [];
       for (let index = 0; index < gallery.length; index++) {
         const img = gallery[index];
-        if (!img?.url) continue;
+        if (!img?.url || img.unlisted) continue;
         const time = timeOf(img);
         if (!best || time >= best.time) best = { project, index, img, time };
       }
@@ -1128,7 +1140,10 @@ export default function Portfolio() {
                     : (selectedProject.gallery[lightboxIndex].isVideo ? "YouTube Video" : "Asset"))}
                 </span>
                 <span className="text-slate-500 mx-2">|</span>
-                <span>{lightboxIndex + 1} of {selectedProject.gallery.length} items</span>
+                {(() => {
+                  const order = lightboxOrder(selectedProject.gallery, lightboxIndex);
+                  return <span>{order.indexOf(lightboxIndex) + 1} of {order.length} items</span>;
+                })()}
               </div>
             </div>
           </div>
@@ -1140,8 +1155,7 @@ export default function Portfolio() {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  const prev = (lightboxIndex - 1 + selectedProject.gallery.length) % selectedProject.gallery.length;
-                  setLightboxIndex(prev);
+                  setLightboxIndex(stepLightboxIndex(selectedProject.gallery, lightboxIndex, -1));
                   setLightboxZoom(1);
                   resetLightboxIdle();
                 }}
@@ -1208,8 +1222,7 @@ export default function Portfolio() {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  const next = (lightboxIndex + 1) % selectedProject.gallery.length;
-                  setLightboxIndex(next);
+                  setLightboxIndex(stepLightboxIndex(selectedProject.gallery, lightboxIndex, 1));
                   setLightboxZoom(1);
                   resetLightboxIdle();
                 }}
@@ -1438,15 +1451,20 @@ export default function Portfolio() {
           {/* B. Center workspace directory canvas */}
           <main className={`flex-1 overflow-y-auto p-2.5 relative min-w-0 flex flex-col justify-start ${styles.mainCanvasBg} select-none`}>
             
-            <AnimatePresence mode="wait">
+            {/* popLayout (not "wait") so the outgoing folder fades out while the
+                incoming one fades in — a true crossfade with no blank gap in the
+                middle, which is what made folder swaps feel like they "stopped
+                and continued". Opacity-only (no y-slide) keeps it snappy and
+                avoids scroll jumps. */}
+            <AnimatePresence mode="popLayout" initial={false}>
             {activeSelection === "overview" ? (
               // ==================== STATE 1: TOP-LEVEL OVERVIEW VIEW ====================
-              <motion.div 
+              <motion.div
                 key="overview"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18, ease: "easeInOut" }}
                 className="h-full flex flex-col justify-start min-h-0"
               >
                 
@@ -1655,10 +1673,10 @@ export default function Portfolio() {
                 <motion.div
                   key={selectedProject.id}
                   ref={galleryViewRef}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18, ease: "easeInOut" }}
                   className={`h-full flex flex-col justify-start min-h-0 ${styles.textSecondary}`}
                 >
 
@@ -1707,7 +1725,7 @@ export default function Portfolio() {
                         )}
 
                         {/* Subfolders are mixed into the gallery (folders first, then files) — Finder-style */}
-                        {(childFolders.length > 0 || selectedProject.gallery.length > 0) && (
+                        {(childFolders.length > 0 || selectedProject.gallery.some(img => !img.unlisted)) && (
                           <>
                             {/* One grid, 4 columns on desktop / 2 on mobile. (Mounting both
                                 and hiding one with CSS set up every tile's media twice.) */}
@@ -1760,7 +1778,7 @@ export default function Portfolio() {
             <span className="font-medium tracking-wide whitespace-nowrap text-slate-500">
               {activeSelection === "overview" 
                 ? `${filteredOverviewFolders.length + filteredOverviewLinks.length + 4} items`
-                : `${(selectedProject?.gallery.length || 0) + childFolders.length} items`}
+                : `${(selectedProject?.gallery.filter(img => !img.unlisted).length || 0) + childFolders.length} items`}
             </span>
           </div>
 

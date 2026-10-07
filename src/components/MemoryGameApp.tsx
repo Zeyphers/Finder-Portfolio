@@ -31,7 +31,7 @@ export const MemoryGameApp: React.FC<MemoryGameProps> = ({ onClose, projects, is
     let images: string[] = [];
     projects.forEach(p => {
       p.gallery.forEach(g => {
-        if (!g.isVideo && g.url) {
+        if (!g.isVideo && !g.unlisted && g.url) {
           images.push(g.url);
         }
       });
