@@ -1464,7 +1464,13 @@ if __name__ == "__main__":
                                     onClick={() => {
                                       setOpenImageMenu(null);
                                       replaceTargetRef.current = { projectId: project.id, imageIndex: index };
-                                      replaceInputRef.current?.click();
+                                      const input = replaceInputRef.current;
+                                      if (!input) return;
+                                      // Keep image items to the plain `image/*` wildcard: Safari transcodes a
+                                      // picked image to a specific type in `accept` (e.g. PNG → GIF) when the
+                                      // list names specific non-matching types.
+                                      input.accept = img.isVideo ? ".mp4,.webm,.gif,video/mp4,video/webm" : "image/*";
+                                      input.click();
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 text-left"
                                   >
@@ -2214,7 +2220,7 @@ if __name__ == "__main__":
         )}
       </main>
 
-      <input ref={replaceInputRef} type="file" accept="image/*,.gif,.mp4,.webm,video/mp4,video/webm" className="hidden" onChange={handleReplaceImage} />
+      <input ref={replaceInputRef} type="file" accept="image/*" className="hidden" onChange={handleReplaceImage} />
 
       {processEditorOpen && (
         <ProcessEditorModal
