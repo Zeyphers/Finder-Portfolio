@@ -4,7 +4,8 @@
 //
 // Each folder segment is a slugified project name (full ancestry, so nested
 // subfolders are unambiguous). The trailing image segment is the image's
-// fileName when present, otherwise its 1-based position in the gallery.
+// fileName (minus its extension) when present, otherwise its 1-based position
+// in the gallery.
 // Lookups are tolerant (case-insensitive, name-or-id) so hand-typed links resolve.
 import { Project, GalleryImage } from "./types";
 
@@ -16,9 +17,14 @@ export const slugifyFolder = (name: string): string =>
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "") || "folder";
 
+// "Bottle_Render.Jpeg" -> "Bottle_Render". Share links leave the extension off:
+// a URL ending in .jpg/.png gets embedded as an image by link-preview and
+// file-submission tools, which then show a broken image since it serves a page.
+const stripExtension = (name: string): string => name.replace(/\.[a-z0-9]{1,5}$/i, "") || name;
+
 // URL segment identifying an image within its gallery.
 export const imageSegment = (img: GalleryImage | undefined, index: number): string => {
-  const fn = (img?.fileName || "").trim();
+  const fn = stripExtension((img?.fileName || "").trim());
   return fn || String(index + 1);
 };
 
@@ -51,17 +57,23 @@ export const buildPath = (
   return `/${folderPath}/${encodeURIComponent(imageSegment(gallery[imageIndex], imageIndex))}`;
 };
 
-// Resolve an image segment to a gallery index. Matches fileName, then 1-based position.
+// Resolve an image segment to a gallery index. Matches fileName (with or without
+// its extension, so older links that include it still work), then 1-based position.
 export const resolveImageIndex = (
   seg: string | undefined,
   gallery: GalleryImage[]
 ): number | null => {
   if (!seg || !gallery || gallery.length === 0) return null;
   const s = decodeURIComponent(seg);
+  const lower = s.toLowerCase();
   const byName = gallery.findIndex(
-    g => (g.fileName || "").trim().toLowerCase() === s.toLowerCase()
+    g => (g.fileName || "").trim().toLowerCase() === lower
   );
   if (byName >= 0) return byName;
+  const byStem = gallery.findIndex(
+    g => stripExtension((g.fileName || "").trim()).toLowerCase() === lower
+  );
+  if (byStem >= 0) return byStem;
   const n = parseInt(s, 10);
   if (!Number.isNaN(n) && n >= 1 && n <= gallery.length) return n - 1;
   return null;
