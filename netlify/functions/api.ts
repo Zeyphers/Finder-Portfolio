@@ -237,6 +237,28 @@ const upload = multer({ storage });
 
 const router = express.Router();
 
+// make_previews.py calls this after uploading each clip: every video tile for
+// that YouTube id gets the clip as its thumbnail. It patches the stored data in
+// place (only tiles that don't have a clip yet), so the script never has to post
+// the whole data set; the admin panel pulls the result in when it regains focus.
+// Kept in sync with the twin in server.ts.
+const linkPreviewClips = (data: any, links: Record<string, { url: string; fileName?: string }>): number => {
+  let linked = 0;
+  for (const proj of data?.PROJECTS || []) {
+    for (const img of proj.gallery || []) {
+      if (!img.isVideo || !img.videoUrl) continue;
+      const id = String(img.videoUrl).match(/(?:v=|youtu\.be\/)([0-9A-Za-z_-]{11})/)?.[1];
+      const link = id ? links[id] : undefined;
+      if (!link || typeof link.url !== "string" || /\.(mp4|webm|m4v|mov)$/i.test(String(img.url || "").split(/[?#]/)[0])) continue;
+      img.url = link.url;
+      // fileName is what share links are built from, so only fill a blank one.
+      if (!img.fileName && link.fileName) img.fileName = link.fileName;
+      linked++;
+    }
+  }
+  return linked;
+};
+
 router.post("/contact", async (req, res) => {
   try {
     const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").toString().split(",")[0].trim();
@@ -713,6 +735,20 @@ router.post("/upload", requireAuth, async (req, res) => {
   } catch (e: any) {
     console.error("Upload error details:", e);
     res.status(500).json({ error: "Failed to upload to netlify blobs: " + (e.message || String(e)) });
+  }
+});
+
+router.post("/link-previews", requireAuth, async (req, res) => {
+  try {
+    const dataStore = getStore("data");
+    const data: any = await dataStore.get("data.json", { type: "json" });
+    if (!data) return res.status(404).json({ error: "No saved data to link clips into" });
+    const linked = linkPreviewClips(data, req.body?.links || {});
+    if (linked > 0) await dataStore.setJSON("data.json", data);
+    res.json({ success: true, linked });
+  } catch (e: any) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to link preview clips: " + (e.message || String(e)) });
   }
 });
 

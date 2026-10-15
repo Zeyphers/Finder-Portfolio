@@ -232,6 +232,29 @@ function writeAdminAuth(state: AdminAuthState): void {
   fs.writeFileSync(ADMIN_AUTH_PATH, JSON.stringify(state, null, 2), { mode: 0o600 });
 }
 
+
+// make_previews.py calls this after uploading each clip: every video tile for
+// that YouTube id gets the clip as its thumbnail. It patches the stored data in
+// place (only tiles that don't have a clip yet), so the script never has to post
+// the whole data set; the admin panel pulls the result in when it regains focus.
+// Kept in sync with the twin in netlify/functions/api.ts.
+const linkPreviewClips = (data: any, links: Record<string, { url: string; fileName?: string }>): number => {
+  let linked = 0;
+  for (const proj of data?.PROJECTS || []) {
+    for (const img of proj.gallery || []) {
+      if (!img.isVideo || !img.videoUrl) continue;
+      const id = String(img.videoUrl).match(/(?:v=|youtu\.be\/)([0-9A-Za-z_-]{11})/)?.[1];
+      const link = id ? links[id] : undefined;
+      if (!link || typeof link.url !== "string" || /\.(mp4|webm|m4v|mov)$/i.test(String(img.url || "").split(/[?#]/)[0])) continue;
+      img.url = link.url;
+      // fileName is what share links are built from, so only fill a blank one.
+      if (!img.fileName && link.fileName) img.fileName = link.fileName;
+      linked++;
+    }
+  }
+  return linked;
+};
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -793,6 +816,23 @@ async function startServer() {
     } catch (e: any) {
       console.error(e);
       res.status(500).json({ error: "Failed to upload to github: " + e.message });
+    }
+  });
+
+  app.post("/api/link-previews", requireAuth, async (req, res) => {
+    try {
+      const dataPath = path.join(process.cwd(), "src/data.json");
+      const data = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
+      const linked = linkPreviewClips(data, req.body?.links || {});
+      if (linked > 0) {
+        const contentString = JSON.stringify(data, null, 2);
+        fs.writeFileSync(dataPath, contentString);
+        await pushDataToGithub(contentString);
+      }
+      res.json({ success: true, linked });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to link preview clips: " + e.message });
     }
   });
 

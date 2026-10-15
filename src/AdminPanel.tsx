@@ -102,6 +102,8 @@ export function AdminPanel() {
   // "⋯" menu on gallery cards, keyed `${projectId}:${index}`.
   const [openImageMenu, setOpenImageMenu] = useState<string | null>(null);
   const [replacingImage, setReplacingImage] = useState<string | null>(null);
+  // What the replace overlay says, e.g. "Making clip… 40%".
+  const [replaceStatus, setReplaceStatus] = useState("Uploading…");
   const replaceInputRef = React.useRef<HTMLInputElement>(null);
   const replaceTargetRef = React.useRef<{ projectId: string; imageIndex: number } | null>(null);
 
@@ -688,6 +690,11 @@ export function AdminPanel() {
 
   // Swap a gallery item's media in place. Caption, fileName (which share links
   // are built from), process notes, unlisted and addedAt are all kept.
+  //
+  // On a video tile, a picked video file is cut down to the 10s preview clip in
+  // the browser first (src/previewClip.ts), so the original full-length video
+  // can be dropped in as-is. The clip then goes on every tile for the same
+  // YouTube video that doesn't have one yet.
   const handleReplaceImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const target = replaceTargetRef.current;
@@ -696,21 +703,49 @@ export function AdminPanel() {
     if (!file || !target) return;
 
     const key = `${target.projectId}:${target.imageIndex}`;
+    const targetImg = localProjects.find(p => p.id === target.projectId)?.gallery[target.imageIndex];
+    const makeClip = !!targetImg?.isVideo && (file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name));
+    const ytId = targetImg?.isVideo && targetImg.videoUrl ? getYouTubeId(targetImg.videoUrl) : null;
     setReplacingImage(key);
     try {
-      const url = await uploadFileWithChunks(file);
+      let upload = file;
+      if (makeClip) {
+        setReplaceStatus("Making clip…");
+        const { makePreviewClip } = await import("./previewClip");
+        upload = await makePreviewClip(file, f => setReplaceStatus(`Making clip… ${Math.round(f * 100)}%`));
+      }
+      setReplaceStatus("Uploading…");
+      const url = await uploadFileWithChunks(upload);
       setLocalProjects(localProjects => localProjects.map(p => {
-        if (p.id !== target.projectId) return p;
-        const newGallery = [...p.gallery];
-        newGallery[target.imageIndex] = { ...newGallery[target.imageIndex], url };
-        return { ...p, gallery: newGallery };
+        const gallery = p.gallery.map((img, i) => {
+          if (p.id === target.projectId && i === target.imageIndex) return { ...img, url };
+          if (makeClip && ytId && img.isVideo && img.videoUrl && getYouTubeId(img.videoUrl) === ytId && !isVideoFile(img.url || "")) return { ...img, url };
+          return img;
+        });
+        return gallery.some((img, i) => img !== p.gallery[i]) ? { ...p, gallery } : p;
       }));
     } catch (err: any) {
       console.error("Replace error", err);
       alert(`Replace failed for ${file.name}: ${err.message || String(err)}`);
     } finally {
       setReplacingImage(null);
+      setReplaceStatus("Uploading…");
     }
+  };
+
+  // Video tiles take any video file: the full original works, it gets cut to
+  // the preview clip. GIFs are still accepted for old previews.
+  const VIDEO_PREVIEW_ACCEPT = "video/*,.mov,.mkv,.gif";
+
+  const pickReplacement = (projectId: string, imageIndex: number, isVideo: boolean) => {
+    replaceTargetRef.current = { projectId, imageIndex };
+    const input = replaceInputRef.current;
+    if (!input) return;
+    // Keep image items to the plain `image/*` wildcard: Safari transcodes a
+    // picked image to a specific type in `accept` (e.g. PNG → GIF) when the
+    // list names specific non-matching types.
+    input.accept = isVideo ? VIDEO_PREVIEW_ACCEPT : "image/*";
+    input.click();
   };
 
   const handleFileUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -738,10 +773,10 @@ export function AdminPanel() {
   // since one video can sit in several folders — it needs a clip if any copy is
   // still missing one.
   const gifStatus = (() => {
-    const needed = new Map<string, { url: string; label: string; folder: string }>();
+    const needed = new Map<string, { url: string; label: string; folder: string; projectId: string; imageIndex: number }>();
     const all = new Set<string>();
     localProjects.forEach(proj => {
-      proj.gallery.forEach(img => {
+      proj.gallery.forEach((img, imageIndex) => {
         if (!img.isVideo || !img.videoUrl) return;
         const id = getYouTubeId(img.videoUrl) || img.videoUrl;
         all.add(id);
@@ -750,37 +785,60 @@ export function AdminPanel() {
           url: img.videoUrl,
           label: img.fileName || img.caption || id,
           folder: (proj.name || "").split(" — ")[0],
+          projectId: proj.id,
+          imageIndex,
         });
       });
     });
     return { needed: Array.from(needed.values()), total: all.size };
   })();
 
-  const downloadUrls = () => {
+  // make_previews.py is self-contained: the videos that still need a clip, the
+  // site's API address and this session's login token are written into it, so
+  // there's no urls.txt to keep next to it. It generates each clip, uploads it
+  // and links it to its video tiles through /api/link-previews — the admin panel
+  // pulls those links in when it regains focus (see pullLinkedClips).
+  const downloadScript = () => {
     if (gifStatus.total === 0) {
       alert("No YouTube URLs found in your projects.");
       return;
     }
     if (gifStatus.needed.length === 0) {
-      alert(`All ${gifStatus.total} videos already have preview clips — nothing to download.`);
+      alert(`All ${gifStatus.total} videos already have preview clips — nothing to do.`);
       return;
     }
 
-    const urls = gifStatus.needed.map(v => v.url);
-    const blob = new Blob([urls.join('\n')], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'urls.txt';
-    a.click();
-  };
+    // JSON string literals are valid Python string literals.
+    const py = (s: string) => JSON.stringify(s);
+    const videoLines = gifStatus.needed
+      .map(v => `    (${py(getYouTubeId(v.url) || "")}, ${py(v.url)}),  # ${`${v.label} — ${v.folder}`.replace(/[\r\n]+/g, " ")}`)
+      .join("\n");
+    const apiUrl = (p: string) => new URL(getApiUrl(p), window.location.origin).href;
 
-  const downloadScript = () => {
-    const scriptContent = `import sys
+    const scriptContent = `# Generated by the admin panel on ${new Date().toISOString().slice(0, 10)}.
+# Makes a 10s muted MP4 preview for each video below, uploads it to the site and
+# links it to the video's tiles. Just run:  python3 make_previews.py
+#
+# Contains your admin login token (valid for 7 days) - don't share this file.
+# If it says the token expired, download a fresh copy from the admin panel.
+import sys
 import subprocess
 import os
 import re
 import json
+import time
+import base64
 import shutil
+import urllib.request
+import urllib.error
+
+VIDEOS = [
+${videoLines}
+]
+
+UPLOAD_URL = ${py(apiUrl("/api/upload"))}
+LINK_URL = ${py(apiUrl("/api/link-previews"))}
+TOKEN = ${py(token)}
 
 # Find yt-dlp / ffmpeg on the PATH so this works on both the Mac (Homebrew)
 # and Windows. Set YTDLP / FFMPEG env vars to point at a specific binary.
@@ -794,92 +852,179 @@ def find_tool(name):
 YTDLP  = find_tool("yt-dlp")
 FFMPEG = find_tool("ffmpeg")
 
-def extract_video_id(url):
-    match = re.search(r"(?:v=|youtu\\.be/)([0-9A-Za-z_-]{11})", url)
-    return match.group(1) if match else None
+def post_json(url, payload):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {TOKEN}",
+            "User-Agent": "make_previews.py",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            sys.exit("Your admin login token has expired. Download make_previews.py "
+                     "again from the admin panel and re-run it.")
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:300]}")
 
-def process_videos(file_path):
-    with open(file_path, 'r') as f:
-        urls = [line.strip() for line in f if line.strip()]
-    
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    previews_dir = os.path.join(script_dir, 'previews')
-    os.makedirs(previews_dir, exist_ok=True)
-    
-    for url in urls:
-        video_id = extract_video_id(url)
-        if not video_id:
-            print(f"Could not extract video ID from {url}")
-            continue
-            
-        try:
-            info_cmd = [YTDLP, "--dump-json", url]
-            result = subprocess.run(info_cmd, capture_output=True, text=True, check=True)
-            info = json.loads(result.stdout)
-            title = info.get('title', video_id)
-            safe_title = re.sub(r'[^a-zA-Z0-9]', '_', title)
-        except Exception as e:
-            print(f"Could not fetch title for {url}: {e}")
-            safe_title = video_id
-            
-        clip_path = os.path.join(previews_dir, f"{video_id}___{safe_title}.mp4")
-        if os.path.exists(clip_path):
-            print(f"Skipping {clip_path}, already exists.")
-            continue
-            
-        print(f"Processing {url} -> {clip_path}")
-        
-        temp_video = os.path.join(script_dir, f"temp_{video_id}.mp4")
-        cmd_download = [
-            YTDLP,
-            "--ffmpeg-location", FFMPEG,
-            # Video only (the preview is muted) and no bigger than 720p.
-            "-f", "bestvideo[ext=mp4][height<=720]/bestvideo[ext=mp4]/best[ext=mp4]/best",
-            "--download-sections", "*0-10",
-            "-o", temp_video,
-            url
+# Same chunked base64 upload the admin panel uses (3 MB chunks keep each request
+# under Netlify's function body limit).
+def upload(path):
+    data = base64.b64encode(open(path, "rb").read()).decode("ascii")
+    name = os.path.basename(path)
+    chunk = 3 * 1024 * 1024
+    total = max(1, -(-len(data) // chunk))
+    file_id = f"clip_{int(time.time() * 1000)}"
+    result = None
+    for i in range(total):
+        result = post_json(UPLOAD_URL, {
+            "fileId": file_id, "chunkIndex": i, "totalChunks": total,
+            "fileBase64": data[i * chunk:(i + 1) * chunk],
+            "fileName": name, "mimeType": "video/mp4",
+        })
+    if not result or not result.get("url"):
+        raise RuntimeError(f"Upload returned no URL: {result}")
+    return result["url"]
+
+def make_clip(video_id, url, clip_path, script_dir):
+    temp_video = os.path.join(script_dir, f"temp_{video_id}.mp4")
+    cmd_download = [
+        YTDLP,
+        "--ffmpeg-location", FFMPEG,
+        # Video only (the preview is muted) and no bigger than 720p.
+        "-f", "bestvideo[ext=mp4][height<=720]/bestvideo[ext=mp4]/best[ext=mp4]/best",
+        "--download-sections", "*0-10",
+        "-o", temp_video,
+        url
+    ]
+    try:
+        subprocess.run(cmd_download, check=True)
+        # A short, muted, web-optimised H.264 clip, typically 10-75x smaller than
+        # the old GIFs. +faststart puts the index up front so the browser can
+        # start playing before it has the whole file.
+        cmd_clip = [
+            FFMPEG,
+            "-y",
+            "-i", temp_video,
+            "-t", "10",
+            "-an",
+            "-vf", "fps=24,scale=480:-2:flags=lanczos",
+            "-c:v", "libx264",
+            "-preset", "slow",
+            "-crf", "26",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            clip_path
         ]
-        
-        try:
-            subprocess.run(cmd_download, check=True)
-            
-            # A short, muted, web-optimised H.264 clip. Same 10 seconds the GIFs
-            # showed, typically 10-75x smaller. +faststart puts the index up
-            # front so the browser can start playing before it has the whole file.
-            cmd_clip = [
-                FFMPEG,
-                "-y",
-                "-i", temp_video,
-                "-t", "10",
-                "-an",
-                "-vf", "fps=24,scale=480:-2:flags=lanczos",
-                "-c:v", "libx264",
-                "-preset", "slow",
-                "-crf", "26",
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-                clip_path
-            ]
-            subprocess.run(cmd_clip, check=True)
-            
+        subprocess.run(cmd_clip, check=True)
+    finally:
+        if os.path.exists(temp_video):
             os.remove(temp_video)
-            print(f"Successfully created {clip_path}")
-            
-        except subprocess.CalledProcessError as e:
-            print(f"Error processing {url}: {e}")
-            if os.path.exists(temp_video):
-                os.remove(temp_video)
+
+def get_title(url, video_id):
+    try:
+        result = subprocess.run([YTDLP, "--skip-download", "--print", "title", url],
+                                capture_output=True, text=True, check=True)
+        return result.stdout.strip() or video_id
+    except Exception as e:
+        print(f"Could not fetch title for {url}: {e}")
+        return video_id
+
+def main():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    previews_dir = os.path.join(script_dir, "previews")
+    os.makedirs(previews_dir, exist_ok=True)
+
+    done, failed = 0, []
+    for video_id, url in VIDEOS:
+        clip_path = os.path.join(previews_dir, f"{video_id}.mp4")
+        try:
+            # Reuse a clip left over from an earlier run whose upload failed.
+            if os.path.exists(clip_path):
+                print(f"Using existing {clip_path}")
+            else:
+                print(f"Processing {url}")
+                make_clip(video_id, url, clip_path, script_dir)
+            title = get_title(url, video_id)
+            file_name = re.sub(r"_+", "_", re.sub(r"[^a-zA-Z0-9]", "_", title)) + ".mp4"
+            print(f"Uploading {video_id} ...")
+            clip_url = upload(clip_path)
+            linked = post_json(LINK_URL, {"links": {video_id: {"url": clip_url, "fileName": file_name}}})
+            print(f"Linked {video_id} to {linked.get('linked', 0)} tile(s)")
+            done += 1
+        except Exception as e:
+            print(f"Failed on {url}: {e}")
+            failed.append(url)
+
+    print()
+    print(f"Done: {done} of {len(VIDEOS)} clips uploaded and linked.")
+    if failed:
+        print("Failed (re-run this script to retry):")
+        for url in failed:
+            print("  " + url)
+    print("Switch back to the admin panel; the new clips show up there on their own.")
 
 if __name__ == "__main__":
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    process_videos(os.path.join(script_dir, "urls.txt"))
+    main()
 `;
-    const blob = new Blob([scriptContent], { type: 'text/plain' });
+    const blob = new Blob([scriptContent], { type: 'text/x-python' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'make_previews.py';
     a.click();
   };
+
+  // Bring in clips that make_previews.py linked on the server while this page
+  // was open. Only fills video tiles that don't have a clip yet, so unsaved
+  // edits elsewhere are left alone.
+  const pullLinkedClips = async () => {
+    if (gifStatus.needed.length === 0 || saving) return;
+    try {
+      const res = await fetch(getDataUrl(), { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const clips = new Map<string, { url: string; fileName?: string }>();
+      (data.PROJECTS || []).forEach((proj: Project) => proj.gallery?.forEach(img => {
+        const id = img.isVideo && img.videoUrl ? getYouTubeId(img.videoUrl) : null;
+        if (id && isVideoFile(img.url || "")) clips.set(id, { url: img.url, fileName: img.fileName });
+      }));
+      if (clips.size === 0) return;
+      setLocalProjects(prev => {
+        let changed = false;
+        const next = prev.map(proj => {
+          let projChanged = false;
+          const gallery = proj.gallery.map(img => {
+            const id = img.isVideo && img.videoUrl ? getYouTubeId(img.videoUrl) : null;
+            const clip = id ? clips.get(id) : undefined;
+            if (!clip || isVideoFile(img.url || "")) return img;
+            projChanged = true;
+            return { ...img, url: clip.url, fileName: img.fileName || clip.fileName };
+          });
+          if (!projChanged) return proj;
+          changed = true;
+          return { ...proj, gallery };
+        });
+        return changed ? next : prev;
+      });
+    } catch (err) {
+      console.error("Could not check for new preview clips", err);
+    }
+  };
+
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === "visible") pullLinkedClips(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  });
 
   const handleGifUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
@@ -1115,7 +1260,7 @@ if __name__ == "__main__":
 
   return (
     <div className={`h-screen bg-slate-50 font-sans text-slate-800 flex flex-col overflow-y-auto ${isDarkTheme ? "admin-dark" : ""}`}>
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-[60] px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center space-x-4">
           <div className="bg-blue-600 text-white p-2 rounded-md">
             <Folder className="w-5 h-5" />
@@ -1424,9 +1569,21 @@ if __name__ == "__main__":
                               ) : (
                                 <ProgressiveImage src={getImageUrl(img.url)} containerClassName="absolute inset-0" className="w-full h-full opacity-50" />
                               )}
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <FileVideo className="w-8 h-8 opacity-90" />
-                              </div>
+                              {isVideoFile(img.url) ? (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <FileVideo className="w-8 h-8 opacity-90" />
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => pickReplacement(project.id, index, true)}
+                                  className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-white hover:bg-black/30 transition"
+                                  title="Pick the original video file; the first 10 seconds become the muted preview"
+                                >
+                                  <FileVideo className="w-8 h-8 text-red-500" />
+                                  <span className="text-[11px] font-medium bg-black/60 rounded px-2 py-0.5">Add preview from video…</span>
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <ProgressiveImage src={getImageUrl(img.url)} alt="media" objectFit="contain" className="max-w-full max-h-full rounded" containerClassName="w-full h-full flex items-center justify-center" />
@@ -1458,24 +1615,17 @@ if __name__ == "__main__":
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
                               {openImageMenu === `${project.id}:${index}` && (
-                                <div className="absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-20 text-xs text-slate-700">
+                                <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-20 text-xs text-slate-700">
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setOpenImageMenu(null);
-                                      replaceTargetRef.current = { projectId: project.id, imageIndex: index };
-                                      const input = replaceInputRef.current;
-                                      if (!input) return;
-                                      // Keep image items to the plain `image/*` wildcard: Safari transcodes a
-                                      // picked image to a specific type in `accept` (e.g. PNG → GIF) when the
-                                      // list names specific non-matching types.
-                                      input.accept = img.isVideo ? ".mp4,.webm,.gif,video/mp4,video/webm" : "image/*";
-                                      input.click();
+                                      pickReplacement(project.id, index, !!img.isVideo);
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 text-left"
                                   >
                                     <ImageUp className="w-3.5 h-3.5" />
-                                    {img.isVideo ? "Replace preview…" : "Replace image…"}
+                                    {img.isVideo ? (isVideoFile(img.url || "") ? "Replace preview…" : "Add preview from video…") : "Replace image…"}
                                   </button>
                                   <button
                                     type="button"
@@ -1496,7 +1646,7 @@ if __name__ == "__main__":
                           {replacingImage === `${project.id}:${index}` && (
                             <div className="absolute inset-0 z-20 bg-white/70 flex items-center justify-center text-xs text-slate-600 gap-1.5">
                               <RefreshCw className="w-4 h-4 animate-spin" />
-                              Uploading…
+                              {replaceStatus}
                             </div>
                           )}
                         </div>
@@ -1826,54 +1976,65 @@ if __name__ == "__main__":
 
               <div className="pt-6 border-t border-slate-200">
                 <h3 className="text-sm font-bold text-slate-900 mb-2">Video Preview Clips</h3>
-                <p className="text-xs text-slate-500 mb-4">Export your YouTube links, run a local Python script to generate 10s muted MP4 previews, and upload them here to auto-link them to your videos. (Replaces the old GIF previews, which were 10–75x larger.)</p>
+                <p className="text-xs text-slate-500 mb-4">Each YouTube tile shows a 10s muted MP4 preview. To make one, click "Add preview from video…" on the tile and pick the original video file. The browser cuts the first 10 seconds and uploads it, so nothing needs installing. (Replaces the old GIF previews, which were 10–75x larger.)</p>
                 
                 <div className="flex flex-col space-y-4">
-                  <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
-                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Step 1: Download Links & Script</h4>
-                    {gifStatus.total > 0 && (
-                      <div className="text-[11px] mb-3">
-                        {gifStatus.needed.length === 0 ? (
-                          <p className="text-emerald-700 font-medium">All {gifStatus.total} videos have preview clips.</p>
-                        ) : (
-                          <details>
-                            <summary className="cursor-pointer text-amber-700 font-medium">
-                              {gifStatus.needed.length} of {gifStatus.total} videos still need an MP4 preview (old GIFs included) — urls.txt only includes these. Show which
-                            </summary>
-                            <ul className="mt-2 ml-4 list-disc text-slate-600 space-y-0.5">
-                              {gifStatus.needed.map(v => (
-                                <li key={v.url}>
+                  <div className="bg-slate-50 p-4 rounded-md border border-slate-200 text-[11px]">
+                    {gifStatus.total === 0 ? (
+                      <p className="text-slate-500">No YouTube videos yet.</p>
+                    ) : gifStatus.needed.length === 0 ? (
+                      <p className="text-emerald-700 font-medium">All {gifStatus.total} videos have preview clips.</p>
+                    ) : (
+                      <>
+                        <p className="text-amber-700 font-medium mb-2">
+                          {gifStatus.needed.length} of {gifStatus.total} videos still need an MP4 preview (old GIFs included):
+                        </p>
+                        <ul className="space-y-1">
+                          {gifStatus.needed.map(v => {
+                            const busy = replacingImage === `${v.projectId}:${v.imageIndex}`;
+                            return (
+                              <li key={v.url} className="flex items-center justify-between gap-3">
+                                <span className="text-slate-600 min-w-0 truncate">
                                   {v.label} <span className="text-slate-400">— {v.folder}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
-                      </div>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => pickReplacement(v.projectId, v.imageIndex, true)}
+                                  disabled={replacingImage !== null}
+                                  className="shrink-0 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 px-2 py-1 rounded font-medium shadow-sm inline-flex items-center gap-1"
+                                >
+                                  {busy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileVideo className="w-3 h-3" />}
+                                  {busy ? replaceStatus : "Choose video file…"}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <p className="text-slate-500 mt-3">Click "Save Changes" afterwards to publish the new clips.</p>
+                      </>
                     )}
-                    <div className="flex space-x-2">
-                      <button 
-                        onClick={downloadUrls}
-                        className="bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-slate-50 transition shadow-sm"
-                      >
-                        Download urls.txt
-                      </button>
-                      <button 
-                        onClick={downloadScript}
-                        className="bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-slate-50 transition shadow-sm"
-                      >
-                        Download make_previews.py
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
-                      Requires <code>python3</code>, <code>yt-dlp</code>, and <code>ffmpeg</code> installed on your system (Mac: <code>brew install yt-dlp ffmpeg</code>). Run <code>python3 make_previews.py</code> in the same folder as <code>urls.txt</code> to generate the clips into a <code>previews</code> folder.
-                    </p>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
-                    <h4 className="text-xs font-semibold text-slate-700 mb-2">Step 2: Upload Generated Clips</h4>
-                    <label className={`cursor-pointer ${uploadingGifs ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'} text-white px-3 py-1.5 rounded-md text-xs font-medium inline-block transition shadow-sm`}>
-                      {uploadingGifs ? "Uploading & Linking..." : "Select clips from 'previews' folder"}
+                  <details className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                    <summary className="text-xs font-semibold text-slate-700 cursor-pointer">No original file? Make clips from YouTube with a script</summary>
+                    <p className="text-[11px] text-slate-500 mt-2 mb-3">
+                      Downloads from YouTube on your Mac (needs <code>brew install yt-dlp ffmpeg</code>). Run <code>python3 make_previews.py</code>: it makes, uploads and links every missing clip, and they show up here when you return to this tab. The file holds your login token for 7 days, so don't share it.
+                    </p>
+                    <button 
+                      onClick={downloadScript}
+                      disabled={gifStatus.needed.length === 0}
+                      className="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-md text-xs font-medium transition shadow-sm inline-flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download make_previews.py
+                    </button>
+                  </details>
+
+                  <details className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                    <summary className="text-xs font-semibold text-slate-700 cursor-pointer">Upload clips manually</summary>
+                    <p className="text-[11px] text-slate-500 mt-2 mb-3">For clips made some other way. Name each file <code>&lt;YouTube id&gt;.mp4</code> (or <code>&lt;id&gt;___title.mp4</code>) and it links to that video.</p>
+                    <label className={`cursor-pointer ${uploadingGifs ? 'bg-slate-400' : 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700'} px-3 py-1.5 rounded-md text-xs font-medium inline-block transition shadow-sm`}>
+                      {uploadingGifs ? "Uploading & Linking..." : "Select clips"}
                       <input 
                         type="file" 
                         multiple
@@ -1883,7 +2044,7 @@ if __name__ == "__main__":
                         onChange={handleGifUpload} 
                       />
                     </label>
-                  </div>
+                  </details>
                 </div>
               </div>
 
